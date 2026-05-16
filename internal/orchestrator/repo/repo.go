@@ -109,7 +109,7 @@ func (r *RepoOrchestrator) Snapshots(ctx context.Context) ([]*restic.Snapshot, e
 	ctx, flush := forwardResticLogs(ctx)
 	defer flush()
 
-	snapshots, err := r.repo.Snapshots(ctx)
+	snapshots, err := r.repo.Snapshots(ctx, restic.WithFlags("--no-cache"))
 	if err != nil {
 		return nil, fmt.Errorf("get snapshots for repo %v: %w", r.repoConfig.Id, err)
 	}
@@ -126,7 +126,7 @@ func (r *RepoOrchestrator) SnapshotsForPlan(ctx context.Context, plan *v1.Plan) 
 		tags = append(tags, TagForInstance(r.config.Instance))
 	}
 
-	snapshots, err := r.repo.Snapshots(ctx, restic.WithFlags("--tag", strings.Join(tags, ",")))
+	snapshots, err := r.repo.Snapshots(ctx, restic.WithFlags("--tag", strings.Join(tags, ","), "--no-cache"))
 	if err != nil {
 		return nil, fmt.Errorf("get snapshots for plan %q: %w", plan.Id, err)
 	}
@@ -200,7 +200,7 @@ func (r *RepoOrchestrator) ListSnapshotFiles(ctx context.Context, snapshotId str
 	ctx, flush := forwardResticLogs(ctx)
 	defer flush()
 
-	_, entries, err := r.repo.ListDirectory(ctx, snapshotId, path, restic.WithFlags("--no-lock"))
+	_, entries, err := r.repo.ListDirectory(ctx, snapshotId, path, restic.WithFlags("--no-lock", "--no-cache"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to list snapshot files: %w", err)
 	}
@@ -407,6 +407,24 @@ func (r *RepoOrchestrator) AddTags(ctx context.Context, snapshotIDs []string, ta
 	}
 
 	return nil
+}
+
+func (r *RepoOrchestrator) Diff(ctx context.Context, snapshotIDBase string, snapshotIDTarget string) ([]*restic.DiffEntry, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	ctx, flush := forwardResticLogs(ctx)
+	defer flush()
+
+	return r.repo.Diff(ctx, snapshotIDBase, snapshotIDTarget)
+}
+
+func (r *RepoOrchestrator) GenericCommand(ctx context.Context, args []string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	ctx, flush := forwardResticLogs(ctx)
+	defer flush()
+
+	return r.repo.GenericCommand(ctx, args)
 }
 
 // RunCommand runs a command in the repo's environment.

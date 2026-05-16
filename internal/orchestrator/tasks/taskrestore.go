@@ -4,14 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
 	v1 "github.com/garethgeorge/backrest/gen/go/v1"
+	"github.com/garethgeorge/backrest/internal/docker"
 	"go.uber.org/zap"
 )
 
-func NewOneoffRestoreTask(repo *v1.Repo, planID string, flowID int64, at time.Time, snapshotID, path, target string) Task {
+func NewOneoffRestoreTask(repo *v1.Repo, planID string, flowID int64, at time.Time, snapshotID, path, target string, overwrite, stopContainer bool) Task {
 	return &GenericOneoffTask{
 		OneoffTask: OneoffTask{
 			BaseTask: BaseTask{
@@ -33,12 +35,12 @@ func NewOneoffRestoreTask(repo *v1.Repo, planID string, flowID int64, at time.Ti
 			},
 		},
 		Do: func(ctx context.Context, st ScheduledTask, taskRunner TaskRunner) error {
-			return NotifyError(ctx, taskRunner, st.Task.Name(), restoreHelper(ctx, st, taskRunner, snapshotID, path, target))
+			return NotifyError(ctx, taskRunner, st.Task.Name(), restoreHelper(ctx, st, taskRunner, snapshotID, path, target, overwrite, stopContainer))
 		},
 	}
 }
 
-func restoreHelper(ctx context.Context, st ScheduledTask, taskRunner TaskRunner, snapshotID, path, target string) error {
+func restoreHelper(ctx context.Context, st ScheduledTask, taskRunner TaskRunner, snapshotID, path, target string, overwrite, stopContainer bool) error {
 	t := st.Task
 	op := st.Op
 
@@ -49,6 +51,32 @@ func restoreHelper(ctx context.Context, st ScheduledTask, taskRunner TaskRunner,
 	restoreOp := st.Op.GetOperationRestore()
 	if restoreOp == nil {
 		return errors.New("operation is not a restore operation")
+	}
+
+	if !overwrite {
+		if _, err := os.Stat(target); err == nil {
+			return fmt.Errorf("target directory %q already exists", target)
+		}
+	}
+
+	if stopContainer {
+		d, err := docker.NewDiscoverer()
+		if err == nil {
+			containerId, _ := d.FindContainerByHostPath(ctx, target)
+			if containerId != "" {
+				zap.L().Info("stopping container for restore", zap.String("containerId", containerId))
+				if err := d.StopContainer(ctx, containerId); err != nil {
+					zap.L().Warn("failed to stop container for restore", zap.Error(err), zap.String("containerId", containerId))
+				} else {
+					defer func() {
+						zap.L().Info("restarting container after restore", zap.String("containerId", containerId))
+						if err := d.StartContainer(context.Background(), containerId); err != nil {
+							zap.L().Error("failed to restart container after restore", zap.Error(err), zap.String("containerId", containerId))
+						}
+					}()
+				}
+			}
+		}
 	}
 
 	repo, err := taskRunner.GetRepoOrchestrator(t.RepoID())

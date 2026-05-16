@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  DockerContainer,
   ListSnapshotFilesRequestSchema,
   ListSnapshotFilesResponse,
   ListSnapshotFilesResponseSchema,
@@ -25,12 +26,14 @@ import { pathSeparator } from "../../state/buildcfg";
 import { create, toJsonString } from "@bufbuild/protobuf";
 import {
   createTreeCollection,
+  createListCollection,
   Flex,
   Box,
   Text,
   Button,
   Stack,
   Spinner,
+  Input,
 } from "@chakra-ui/react";
 import {
   TreeViewRoot,
@@ -52,9 +55,20 @@ import {
   MenuItem,
   MenuItemText,
 } from "../../components/ui/menu";
+import {
+  SelectRoot,
+  SelectTrigger,
+  SelectValueText,
+  SelectContent,
+  SelectItem,
+} from "../../components/ui/select";
 import { FormModal } from "../../components/common/FormModal";
 import { Field } from "../../components/ui/field";
 import { alerts } from "../../components/common/Alerts";
+import { InputGroup } from "../../components/ui/input-group";
+import { FiSearch, FiAlertTriangle } from "react-icons/fi";
+import { Checkbox } from "../../components/ui/checkbox";
+import * as m from "../../paraglide/messages";
 
 const SnapshotBrowserContext = React.createContext<{
   snapshotId: string;
@@ -132,6 +146,7 @@ export const SnapshotBrowser = ({
   const [treeData, setTreeData] = useState<SnapshotNode[]>([]);
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
   const [loadingKeys, setLoadingKeys] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState("");
 
   const respToNodes = (resp: ListSnapshotFilesResponse): SnapshotNode[] => {
     return (
@@ -235,6 +250,29 @@ export const SnapshotBrowser = ({
   };
 
   const collection = useMemo(() => {
+    let filteredTree = treeData;
+
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const filterNodes = (nodes: SnapshotNode[]): SnapshotNode[] => {
+        return nodes
+          .map((node) => {
+            const children = node.children
+              ? filterNodes(node.children)
+              : undefined;
+            const matches =
+              node.entry.name?.toLowerCase().includes(q) ||
+              (children && children.length > 0);
+            if (matches) {
+              return { ...node, children } as SnapshotNode;
+            }
+            return null;
+          })
+          .filter((n): n is SnapshotNode => n !== null);
+      };
+      filteredTree = filterNodes(treeData);
+    }
+
     return createTreeCollection<SnapshotNode>({
       nodeToValue: (node: SnapshotNode) => node?.key ?? "",
       nodeToString: (node: SnapshotNode) => node?.key ?? "",
@@ -242,18 +280,28 @@ export const SnapshotBrowser = ({
       rootNode: {
         key: "root",
         title: "root",
-        children: treeData,
+        children: filteredTree,
         entry: create(LsEntrySchema, {}),
         isLeaf: false,
       },
     });
-  }, [treeData]);
+  }, [treeData, searchQuery]);
 
   return (
     <SnapshotBrowserContext.Provider
       value={{ snapshotId, repoId, planId, showModal }}
     >
-      <Box minH="200px" overflow="auto">
+      <Stack gap={4} width="full">
+        <InputGroup flex="1" startElement={<FiSearch />}>
+          <Input
+            placeholder={m.snapshot_browser_search_placeholder()}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            size="sm"
+          />
+        </InputGroup>
+
+        <Box minH="200px" overflow="auto">
         {/* @ts-ignore */}
         <TreeViewRoot
           collection={collection}
@@ -308,6 +356,7 @@ export const SnapshotBrowser = ({
           </TreeViewTree>
         </TreeViewRoot>
       </Box>
+      </Stack>
     </SnapshotBrowserContext.Provider>
   );
 };
@@ -423,18 +472,59 @@ const RestoreModal = ({
 }) => {
   const showModal = useShowModal();
   const [target, setTarget] = useState("");
+  const [isOriginalLocation, setIsOriginalLocation] = useState(false);
+  const [targetContainer, setTargetContainer] = useState<string>("");
+  const [containers, setContainers] = useState<DockerContainer[]>([]);
+  const [isLoadingContainers, setIsLoadingContainers] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchContainers = async () => {
+      setIsLoadingContainers(true);
+      try {
+        const resp = await backrestService.discoverDocker({});
+        setContainers(resp.containers);
+      } catch (e: any) {
+        console.error("Failed to fetch containers for restore:", e);
+      } finally {
+        setIsLoadingContainers(false);
+      }
+    };
+    fetchContainers();
+  }, []);
+
+  const containerCollection = useMemo(() => {
+    return createListCollection({
+      items: containers.flatMap((c) =>
+        c.volumes.map((v) => ({
+          label: `${c.name} - ${v.name || v.destination}`,
+          value: v.source,
+        })),
+      ),
+    });
+  }, [containers]);
+
+  useEffect(() => {
+    if (targetContainer) {
+      setTarget(targetContainer);
+      setIsOriginalLocation(false);
+    }
+  }, [targetContainer]);
 
   const defaultPath = useMemo(() => {
     if (path === pathSeparator) {
       return "";
     }
     return path + "-backrest-restore-" + normalizeSnapshotId(snapshotId);
-  }, [path]);
+  }, [path, snapshotId]);
 
   useEffect(() => {
-    setTarget(defaultPath);
-  }, [defaultPath]);
+    if (isOriginalLocation) {
+      setTarget(path);
+    } else {
+      setTarget(defaultPath);
+    }
+  }, [isOriginalLocation, defaultPath, path]);
 
   const handleValid = () => {
     // Basic validation
@@ -491,16 +581,67 @@ const RestoreModal = ({
           exist or that you are comfortable overwriting the data at that
           location.
         </Text>
-        <Text>
-          You may set the path to an empty string to restore to your Downloads
-          folder.
-        </Text>
+
+        <Checkbox
+          checked={isOriginalLocation}
+          onCheckedChange={(e) => {
+            setIsOriginalLocation(!!e.checked);
+            if (e.checked) setTargetContainer("");
+          }}
+        >
+          {m.restore_modal_original_location()}
+        </Checkbox>
+
+        {containers.length > 0 && (
+          <Field label={m.restore_modal_target_container()}>
+            <SelectRoot
+              collection={containerCollection}
+              value={[targetContainer]}
+              onValueChange={(e) => setTargetContainer(e.value[0])}
+              size="sm"
+            >
+              <SelectTrigger>
+                <SelectValueText
+                  placeholder={m.restore_modal_select_container()}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {containerCollection.items.map((item) => (
+                  <SelectItem item={item} key={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </SelectRoot>
+          </Field>
+        )}
+
+        {isOriginalLocation && (
+          <Box
+            p={2}
+            bg="orange.50"
+            _dark={{ bg: "orange.950" }}
+            borderRadius="md"
+            borderLeft="4px solid"
+            borderLeftColor="orange.400"
+          >
+            <Flex align="center" gap={2}>
+              <FiAlertTriangle color="orange" />
+              <Text fontSize="xs" fontWeight="bold">
+                {m.restore_modal_original_location_warning()}
+              </Text>
+            </Flex>
+          </Box>
+        )}
 
         <Field label="Restore to path" errorText={error}>
           <URIAutocomplete
             placeholder="Restoring to Downloads"
             value={target}
-            onChange={(val: string) => setTarget(val || "")}
+            onChange={(val: string) =>
+              !isOriginalLocation && setTarget(val || "")
+            }
+            disabled={isOriginalLocation}
           />
         </Field>
       </Stack>

@@ -73,6 +73,18 @@ service Backrest {
   // GeneratePairingToken creates a new pairing token on the server that can be shared with clients to simplify peering.
   // The token format is "<keyid>:<secret>#<instanceid>" — an opaque string the client pastes when adding a known host.
   rpc GeneratePairingToken(GeneratePairingTokenRequest) returns (GeneratePairingTokenResponse) {}
+
+  // DiscoverDocker returns a list of Docker containers and their volumes.
+  rpc DiscoverDocker(google.protobuf.Empty) returns (DiscoverDockerResponse) {}
+
+  // CreateDockerPlans bulk-creates plans based on discovered Docker volumes.
+  rpc CreateDockerPlans(CreateDockerPlansRequest) returns (Config) {}
+
+  // UpdateSnapshotTags updates the tags for a list of snapshots.
+  rpc UpdateSnapshotTags(UpdateSnapshotTagsRequest) returns (google.protobuf.Empty) {}
+
+  // DiffSnapshots compares two snapshots and returns the differences.
+  rpc DiffSnapshots(DiffSnapshotsRequest) returns (DiffSnapshotsResponse) {}
 }
 
 // OpSelector is a message that can be used to select operations e.g. by query.
@@ -85,6 +97,45 @@ message OpSelector {
   optional string snapshot_id = 4;
   optional int64 flow_id = 5;
   optional int64 modno_gte = 9;
+}
+
+message DiscoverDockerResponse {
+  repeated DockerContainer containers = 1;
+}
+
+message DockerContainer {
+  string id = 1;
+  string name = 2;
+  string image = 3;
+  string state = 4;
+  string compose_project = 5;
+  repeated DockerVolume volumes = 6;
+}
+
+message DockerVolume {
+  string name = 1;
+  string source = 2; // host path
+  string destination = 3; // container path
+  string type = 4; // volume or bind
+  bool read_only = 5;
+  bool already_backed_up = 6; // if a plan already covers this source path
+  bool path_reachable = 7; // if the source path is accessible by backrest
+  string plan_id = 8; // the ID of the plan that covers this volume
+}
+
+message CreateDockerPlansRequest {
+  repeated DockerPlanDefinition plans = 1;
+  string repo_id = 2;
+  Schedule schedule = 3;
+  RetentionPolicy retention = 4;
+}
+
+message DockerPlanDefinition {
+  string container_name = 1;
+  string volume_name = 2;
+  string path = 3; // source path
+  repeated string pre_hooks = 4;
+  repeated string post_hooks = 5;
 }
 
 message SetupSftpRequest {
@@ -151,11 +202,13 @@ message GetOperationsRequest {
 }
 
 message RestoreSnapshotRequest {
-  string plan_id = 1;
-  string repo_id = 5;
-  string snapshot_id = 2;
-  string path = 3;
-  string target = 4;
+  string repo_id = 1;
+  string plan_id = 2;
+  string snapshot_id = 3;
+  string path = 4;
+  string target = 5;
+  bool overwrite = 6; // allow restoring to an existing directory
+  bool stop_container = 7; // stop the container before restoring
 }
 
 message ListSnapshotFilesRequest {
@@ -237,4 +290,29 @@ message GeneratePairingTokenRequest {
 
 message GeneratePairingTokenResponse {
   string token = 1; // the opaque pairing token string: "<keyid>:<secret>#<instanceid>"
+}
+
+message UpdateSnapshotTagsRequest {
+  string repo_id = 1;
+  repeated string snapshot_ids = 2;
+  repeated string add_tags = 3;
+  repeated string remove_tags = 4;
+}
+
+message DiffSnapshotsRequest {
+  string repo_id = 1;
+  string snapshot_id_base = 2;
+  string snapshot_id_target = 3;
+}
+
+message DiffSnapshotsResponse {
+  repeated DiffEntry entries = 1;
+}
+
+message DiffEntry {
+  string path = 1;
+  string type = 2; // "file", "dir", etc.
+  string change = 3; // "added", "removed", "modified"
+  int64 size = 4; // new size or size of added/removed file
+  int64 size_diff = 5; // difference in size for modified files
 }

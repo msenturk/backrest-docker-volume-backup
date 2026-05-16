@@ -288,6 +288,23 @@ func (e *LsEntry) ToProto() *v1.LsEntry {
 	}
 }
 
+type DiffEntry struct {
+	MessageType string `json:"message_type"` // "change" or "stats"
+	ItemType    string `json:"item_type"`    // "file", "dir", etc.
+	Path        string `json:"path"`
+	Change      string `json:"change"` // "added", "removed", "modified", "metadata", "type_change"
+	Size        int64  `json:"size"`   // only for files
+}
+
+func (e *DiffEntry) ToProto() *v1.DiffEntry {
+	return &v1.DiffEntry{
+		Path:   e.Path,
+		Type:   e.ItemType,
+		Change: e.Change,
+		Size:   e.Size,
+	}
+}
+
 func readLs(output io.Reader) (*Snapshot, []*LsEntry, error) {
 	scanner := bufio.NewScanner(output)
 	scanner.Split(bufio.ScanLines)

@@ -23,6 +23,7 @@ import (
 	syncapi "github.com/garethgeorge/backrest/internal/api/syncapi"
 	"github.com/garethgeorge/backrest/internal/config"
 	"github.com/garethgeorge/backrest/internal/cryptoutil"
+	"github.com/garethgeorge/backrest/internal/docker"
 	"github.com/garethgeorge/backrest/internal/env"
 	"github.com/garethgeorge/backrest/internal/logstore"
 	"github.com/garethgeorge/backrest/internal/oplog"
@@ -612,18 +613,13 @@ func (s *BackrestHandler) Restore(ctx context.Context, req *connect.Request[v1.R
 	if req.Msg.Path == "" {
 		req.Msg.Path = "/"
 	}
-	// prevent restoring to a directory that already exists
-	if _, err := os.Stat(req.Msg.Target); err == nil {
-		return nil, fmt.Errorf("target directory %q already exists", req.Msg.Target)
-	}
-
 	repo, err := s.orchestrator.GetRepo(req.Msg.RepoId)
 	if err != nil {
 		return nil, err
 	}
 
 	at := time.Now()
-	if err := s.orchestrator.ScheduleTask(tasks.NewOneoffRestoreTask(repo, req.Msg.PlanId, 0 /* flowID */, at, req.Msg.SnapshotId, req.Msg.Path, req.Msg.Target), tasks.TaskPriorityInteractive+tasks.TaskPriorityDefault); err != nil {
+	if err := s.orchestrator.ScheduleTask(tasks.NewOneoffRestoreTask(repo, req.Msg.PlanId, 0 /* flowID */, at, req.Msg.SnapshotId, req.Msg.Path, req.Msg.Target, req.Msg.Overwrite, req.Msg.StopContainer), tasks.TaskPriorityInteractive+tasks.TaskPriorityDefault); err != nil {
 		return nil, fmt.Errorf("failed to schedule restore task: %w", err)
 	}
 
@@ -993,4 +989,154 @@ func sanitizeRepoFlags(repo *v1.Repo) {
 			repo.Flags[i] = strings.ReplaceAll(flag, "-i @", "-i ")
 		}
 	}
+}
+
+func (s *BackrestHandler) DiscoverDocker(ctx context.Context, req *connect.Request[emptypb.Empty]) (*connect.Response[v1.DiscoverDockerResponse], error) {
+	d, err := docker.NewDiscoverer()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create docker client: %w (make sure /var/run/docker.sock is mounted into the container)", err)
+	}
+
+	cfg, err := s.config.Get()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get config: %w", err)
+	}
+
+	containers, err := d.Discover(ctx, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover docker containers: %w (ensure the docker socket has sufficient permissions)", err)
+	}
+
+	return connect.NewResponse(&v1.DiscoverDockerResponse{Containers: containers}), nil
+}
+
+func (s *BackrestHandler) CreateDockerPlans(ctx context.Context, req *connect.Request[v1.CreateDockerPlansRequest]) (*connect.Response[v1.Config], error) {
+	if err := s.config.Transform(func(cfg *v1.Config) (*v1.Config, error) {
+		for _, planDef := range req.Msg.Plans {
+			planID := fmt.Sprintf("docker-%s", planDef.ContainerName)
+			if planDef.VolumeName != "" {
+				planID = fmt.Sprintf("docker-%s-%s", planDef.ContainerName, planDef.VolumeName)
+			}
+
+			// Ensure plan ID is unique
+			baseID := planID
+			for i := 1; ; i++ {
+				found := false
+				for _, p := range cfg.Plans {
+					if p.Id == planID {
+						found = true
+						break
+					}
+				}
+				if !found {
+					break
+				}
+				planID = fmt.Sprintf("%s-%d", baseID, i)
+			}
+
+			newPlan := &v1.Plan{
+				Id:        planID,
+				Repo:      req.Msg.RepoId,
+				Paths:     []string{planDef.Path},
+				Schedule:  req.Msg.Schedule,
+				Retention: req.Msg.Retention,
+			}
+
+			// Add hooks if provided
+			for _, hookCmd := range planDef.PreHooks {
+				newPlan.Hooks = append(newPlan.Hooks, &v1.Hook{
+					Conditions: []v1.Hook_Condition{v1.Hook_CONDITION_SNAPSHOT_START},
+					Action: &v1.Hook_ActionCommand{
+						ActionCommand: &v1.Hook_Command{Command: hookCmd},
+					},
+					OnError: v1.Hook_ON_ERROR_FATAL,
+				})
+			}
+			for _, hookCmd := range planDef.PostHooks {
+				newPlan.Hooks = append(newPlan.Hooks, &v1.Hook{
+					Conditions: []v1.Hook_Condition{v1.Hook_CONDITION_SNAPSHOT_END},
+					Action: &v1.Hook_ActionCommand{
+						ActionCommand: &v1.Hook_Command{Command: hookCmd},
+					},
+					OnError: v1.Hook_ON_ERROR_IGNORE,
+				})
+			}
+
+			cfg.Plans = append(cfg.Plans, newPlan)
+		}
+
+		cfg.Modno++
+		return cfg, nil
+	}); err != nil {
+		return nil, fmt.Errorf("failed to create docker plans: %w", err)
+	}
+
+	newConfig, err := s.config.Get()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get updated config: %w", err)
+	}
+	return connect.NewResponse(config.SanitizeForNetwork(newConfig)), nil
+}
+
+func (s *BackrestHandler) UpdateSnapshotTags(ctx context.Context, req *connect.Request[v1.UpdateSnapshotTagsRequest]) (*connect.Response[emptypb.Empty], error) {
+	c, err := s.config.Get()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get config: %w", err)
+	}
+
+	repo := config.FindRepo(c, req.Msg.RepoId)
+	if repo == nil {
+		return nil, fmt.Errorf("repo %s not found", req.Msg.RepoId)
+	}
+
+	r, err := s.orchestrator.GetRepoOrchestrator(repo.Id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repo: %w", err)
+	}
+
+	if len(req.Msg.AddTags) > 0 {
+		if err := r.AddTags(ctx, req.Msg.SnapshotIds, req.Msg.AddTags); err != nil {
+			return nil, fmt.Errorf("failed to add tags: %w", err)
+		}
+	}
+
+	if len(req.Msg.RemoveTags) > 0 {
+		// restic tag --remove tag1,tag2 ID1 ID2
+		args := []string{"tag", "--remove", strings.Join(req.Msg.RemoveTags, ",")}
+		args = append(args, req.Msg.SnapshotIds...)
+		if err := r.GenericCommand(ctx, args); err != nil {
+			return nil, fmt.Errorf("failed to remove tags: %w", err)
+		}
+	}
+
+	return connect.NewResponse(&emptypb.Empty{}), nil
+}
+
+func (s *BackrestHandler) DiffSnapshots(ctx context.Context, req *connect.Request[v1.DiffSnapshotsRequest]) (*connect.Response[v1.DiffSnapshotsResponse], error) {
+	c, err := s.config.Get()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get config: %w", err)
+	}
+
+	repo := config.FindRepo(c, req.Msg.RepoId)
+	if repo == nil {
+		return nil, fmt.Errorf("repo %s not found", req.Msg.RepoId)
+	}
+
+	r, err := s.orchestrator.GetRepoOrchestrator(repo.Id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repo: %w", err)
+	}
+
+	diff, err := r.Diff(ctx, req.Msg.SnapshotIdBase, req.Msg.SnapshotIdTarget)
+	if err != nil {
+		return nil, fmt.Errorf("failed to diff snapshots: %w", err)
+	}
+
+	var entries []*v1.DiffEntry
+	for _, e := range diff {
+		entries = append(entries, e.ToProto())
+	}
+
+	return connect.NewResponse(&v1.DiffSnapshotsResponse{Entries: entries}), nil
 }

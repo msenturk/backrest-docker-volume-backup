@@ -18,6 +18,9 @@ import {
   Heading,
   Code,
   IconButton,
+  Input,
+  Badge,
+  Group,
 } from "@chakra-ui/react";
 import {
   MenuRoot,
@@ -25,7 +28,15 @@ import {
   MenuContent,
   MenuItem,
 } from "../../components/ui/menu";
-import { FiFileText, FiMoreVertical, FiTrash2, FiX } from "react-icons/fi";
+import {
+  FiFileText,
+  FiMoreVertical,
+  FiTrash2,
+  FiX,
+  FiTag,
+  FiPlus,
+  FiGitCommit,
+} from "react-icons/fi";
 import { ProgressCircle } from "../../components/ui/progress-circle";
 import { ProgressBar, ProgressRoot } from "../../components/ui/progress";
 import { toaster } from "../../components/ui/toaster";
@@ -36,13 +47,17 @@ import {
   SnapshotSummary,
 } from "../../../gen/ts/v1/restic_pb";
 import { SnapshotBrowser } from "../repositories/SnapshotBrowser";
+import { SnapshotDiffModal } from "../repositories/SnapshotDiffModal";
 import {
   formatBytes,
   formatDuration,
   formatTime,
   normalizeSnapshotId,
 } from "../../lib/formatting";
-import { ClearHistoryRequestSchema } from "../../../gen/ts/v1/service_pb";
+import {
+  ClearHistoryRequestSchema,
+  UpdateSnapshotTagsRequestSchema,
+} from "../../../gen/ts/v1/service_pb";
 import { backrestService } from "../../api/client";
 import { useShowModal } from "../../components/common/ModalManager";
 import { alerts } from "../../components/common/Alerts";
@@ -278,7 +293,12 @@ export const OperationRow = ({
     bodyItems.push({
       key: "details",
       label: m.op_row_details(),
-      children: <SnapshotDetails snapshot={snapshotOp.snapshot!} />,
+      children: (
+        <SnapshotDetails
+          snapshot={snapshotOp.snapshot!}
+          repoId={operation.repoId}
+        />
+      ),
     });
     bodyItems.push({
       key: "browser",
@@ -449,18 +469,126 @@ export const OperationRow = ({
   );
 };
 
-const SnapshotDetails = ({ snapshot }: { snapshot: ResticSnapshot }) => {
+const SnapshotDetails = ({
+  snapshot,
+  repoId,
+}: {
+  snapshot: ResticSnapshot;
+  repoId: string;
+}) => {
+  const showModal = useShowModal();
+  const [tags, setTags] = useState(snapshot.tags);
+  const [newTag, setNewTag] = useState("");
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const handleAddTag = async () => {
+    if (!newTag) return;
+    setIsUpdating(true);
+    try {
+      await backrestService.updateSnapshotTags(
+        create(UpdateSnapshotTagsRequestSchema, {
+          repoId,
+          snapshotIds: [snapshot.id!],
+          addTags: [newTag],
+        }),
+      );
+      setTags([...tags, newTag]);
+      setNewTag("");
+      alerts.success("Tag added successfully.");
+    } catch (e: any) {
+      alerts.error("Failed to add tag: " + e.message);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleRemoveTag = async (tag: string) => {
+    setIsUpdating(true);
+    try {
+      await backrestService.updateSnapshotTags(
+        create(UpdateSnapshotTagsRequestSchema, {
+          repoId,
+          snapshotIds: [snapshot.id!],
+          removeTags: [tag],
+        }),
+      );
+      setTags(tags.filter((t) => t !== tag));
+      alerts.success("Tag removed successfully.");
+    } catch (e: any) {
+      alerts.error("Failed to remove tag: " + e.message);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const summary = snapshot.summary;
+
+  const showDiff = () => {
+    showModal(
+      <SnapshotDiffModal
+        repoId={repoId}
+        baseSnapshotId={snapshot.id!}
+        onClose={() => showModal(null)}
+      />,
+    );
+  };
 
   return (
     <>
-      <Text>
-        <Text as="span" fontWeight="bold">
-          {m.op_row_snapshot_id()}
+      <Flex justify="space-between" align="center">
+        <Text>
+          <Text as="span" fontWeight="bold">
+            {m.op_row_snapshot_id()}
+          </Text>
+          {normalizeSnapshotId(snapshot.id!)}
         </Text>
-        {normalizeSnapshotId(snapshot.id!)}
-      </Text>
-      <SimpleGrid columns={3} gap={4} mt={2}>
+        <Button size="xs" variant="outline" onClick={showDiff}>
+          <FiGitCommit /> {m.snapshot_diff_compare()}
+        </Button>
+      </Flex>
+
+      <Box mt={4}>
+        <Text fontWeight="bold" mb={2}>
+          {m.snapshot_tags_label()}
+        </Text>
+        <Flex wrap="wrap" gap={2} mb={2}>
+          {tags.map((tag) => (
+            <Badge key={tag} colorPalette="blue" variant="subtle" px={2} py={1}>
+              {tag}
+              <IconButton
+                variant="ghost"
+                size="xs"
+                ml={1}
+                disabled={isUpdating}
+                onClick={() => handleRemoveTag(tag)}
+                aria-label="Remove tag"
+              >
+                <FiX size={10} />
+              </IconButton>
+            </Badge>
+          ))}
+        </Flex>
+        <Group attached width="full" maxW="300px">
+          <Input
+            placeholder={m.snapshot_tag_add()}
+            size="xs"
+            value={newTag}
+            onChange={(e) => setNewTag(e.target.value)}
+            disabled={isUpdating}
+            onKeyDown={(e) => e.key === "Enter" && handleAddTag()}
+          />
+          <IconButton
+            size="xs"
+            colorPalette="blue"
+            onClick={handleAddTag}
+            loading={isUpdating}
+          >
+            <FiPlus />
+          </IconButton>
+        </Group>
+      </Box>
+
+      <SimpleGrid columns={3} gap={4} mt={4}>
         <GridItem colSpan={1}>
           <Text fontWeight="bold">{m.op_row_user_host()}</Text>
           <Text color="fg.muted">

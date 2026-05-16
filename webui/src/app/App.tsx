@@ -14,6 +14,7 @@ import {
   FiMenu,
   FiHome,
   FiChevronRight,
+  FiBox,
 } from "react-icons/fi";
 
 import {
@@ -104,6 +105,12 @@ const PlanView = React.lazy(() =>
 const RepoView = React.lazy(() =>
   import("../features/repositories/RepoView").then((m) => ({
     default: m.RepoView,
+  })),
+);
+
+const DockerDiscoveryPage = React.lazy(() =>
+  import("../features/docker/DockerDiscoveryPage").then((m) => ({
+    default: m.DockerDiscoveryPage,
   })),
 );
 
@@ -646,6 +653,22 @@ const SidebarContent = ({ onClose }: { onClose?: () => void }) => {
           </Flex>
         </Box>
 
+        {/* DOCKER DISCOVERY */}
+        <Box
+          cursor="pointer"
+          onClick={() => handleNav("/docker")}
+          px={4}
+          py={2}
+          bg={isActive("/docker") ? "bg.muted" : undefined}
+          _hover={{ bg: "bg.muted" }}
+          userSelect="none"
+        >
+          <Flex align="center" gap={2}>
+            <FiBox />
+            <Text fontWeight="medium">{m.app_menu_docker_discovery()}</Text>
+          </Flex>
+        </Box>
+
         {/* PLANS SECTION */}
         <AccordionItem value="plans">
           <AccordionItemTrigger px={4} py={2} _hover={{ bg: "bg.muted" }}>
@@ -964,6 +987,16 @@ export const App: React.FC = () => {
                       breadcrumbs={[{ title: m.app_breadcrumb_summary() }]}
                     >
                       <SummaryDashboard />
+                    </MainContentAreaTemplate>
+                  }
+                />
+                <Route
+                  path="/docker"
+                  element={
+                    <MainContentAreaTemplate
+                      breadcrumbs={[{ title: m.app_breadcrumb_docker_discovery() }]}
+                    >
+                      <DockerDiscoveryPage />
                     </MainContentAreaTemplate>
                   }
                 />

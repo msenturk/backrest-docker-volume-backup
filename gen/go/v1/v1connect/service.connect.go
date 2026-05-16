@@ -85,6 +85,16 @@ const (
 	// BackrestGeneratePairingTokenProcedure is the fully-qualified name of the Backrest's
 	// GeneratePairingToken RPC.
 	BackrestGeneratePairingTokenProcedure = "/v1.Backrest/GeneratePairingToken"
+	// BackrestDiscoverDockerProcedure is the fully-qualified name of the Backrest's DiscoverDocker RPC.
+	BackrestDiscoverDockerProcedure = "/v1.Backrest/DiscoverDocker"
+	// BackrestCreateDockerPlansProcedure is the fully-qualified name of the Backrest's
+	// CreateDockerPlans RPC.
+	BackrestCreateDockerPlansProcedure = "/v1.Backrest/CreateDockerPlans"
+	// BackrestUpdateSnapshotTagsProcedure is the fully-qualified name of the Backrest's
+	// UpdateSnapshotTags RPC.
+	BackrestUpdateSnapshotTagsProcedure = "/v1.Backrest/UpdateSnapshotTags"
+	// BackrestDiffSnapshotsProcedure is the fully-qualified name of the Backrest's DiffSnapshots RPC.
+	BackrestDiffSnapshotsProcedure = "/v1.Backrest/DiffSnapshots"
 )
 
 // BackrestClient is a client for the v1.Backrest service.
@@ -124,6 +134,14 @@ type BackrestClient interface {
 	// GeneratePairingToken creates a new pairing token on the server that can be shared with clients to simplify peering.
 	// The token format is "<keyid>:<secret>#<instanceid>" — an opaque string the client pastes when adding a known host.
 	GeneratePairingToken(context.Context, *connect.Request[v1.GeneratePairingTokenRequest]) (*connect.Response[v1.GeneratePairingTokenResponse], error)
+	// DiscoverDocker returns a list of Docker containers and their volumes.
+	DiscoverDocker(context.Context, *connect.Request[emptypb.Empty]) (*connect.Response[v1.DiscoverDockerResponse], error)
+	// CreateDockerPlans bulk-creates plans based on discovered Docker volumes.
+	CreateDockerPlans(context.Context, *connect.Request[v1.CreateDockerPlansRequest]) (*connect.Response[v1.Config], error)
+	// UpdateSnapshotTags updates the tags for a list of snapshots.
+	UpdateSnapshotTags(context.Context, *connect.Request[v1.UpdateSnapshotTagsRequest]) (*connect.Response[emptypb.Empty], error)
+	// DiffSnapshots compares two snapshots and returns the differences.
+	DiffSnapshots(context.Context, *connect.Request[v1.DiffSnapshotsRequest]) (*connect.Response[v1.DiffSnapshotsResponse], error)
 }
 
 // NewBackrestClient constructs a client for the v1.Backrest service. By default, it uses the
@@ -269,6 +287,30 @@ func NewBackrestClient(httpClient connect.HTTPClient, baseURL string, opts ...co
 			connect.WithSchema(backrestMethods.ByName("GeneratePairingToken")),
 			connect.WithClientOptions(opts...),
 		),
+		discoverDocker: connect.NewClient[emptypb.Empty, v1.DiscoverDockerResponse](
+			httpClient,
+			baseURL+BackrestDiscoverDockerProcedure,
+			connect.WithSchema(backrestMethods.ByName("DiscoverDocker")),
+			connect.WithClientOptions(opts...),
+		),
+		createDockerPlans: connect.NewClient[v1.CreateDockerPlansRequest, v1.Config](
+			httpClient,
+			baseURL+BackrestCreateDockerPlansProcedure,
+			connect.WithSchema(backrestMethods.ByName("CreateDockerPlans")),
+			connect.WithClientOptions(opts...),
+		),
+		updateSnapshotTags: connect.NewClient[v1.UpdateSnapshotTagsRequest, emptypb.Empty](
+			httpClient,
+			baseURL+BackrestUpdateSnapshotTagsProcedure,
+			connect.WithSchema(backrestMethods.ByName("UpdateSnapshotTags")),
+			connect.WithClientOptions(opts...),
+		),
+		diffSnapshots: connect.NewClient[v1.DiffSnapshotsRequest, v1.DiffSnapshotsResponse](
+			httpClient,
+			baseURL+BackrestDiffSnapshotsProcedure,
+			connect.WithSchema(backrestMethods.ByName("DiffSnapshots")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -296,6 +338,10 @@ type backrestClient struct {
 	pathAutocomplete     *connect.Client[types.StringValue, types.StringList]
 	getSummaryDashboard  *connect.Client[emptypb.Empty, v1.SummaryDashboardResponse]
 	generatePairingToken *connect.Client[v1.GeneratePairingTokenRequest, v1.GeneratePairingTokenResponse]
+	discoverDocker       *connect.Client[emptypb.Empty, v1.DiscoverDockerResponse]
+	createDockerPlans    *connect.Client[v1.CreateDockerPlansRequest, v1.Config]
+	updateSnapshotTags   *connect.Client[v1.UpdateSnapshotTagsRequest, emptypb.Empty]
+	diffSnapshots        *connect.Client[v1.DiffSnapshotsRequest, v1.DiffSnapshotsResponse]
 }
 
 // GetConfig calls v1.Backrest.GetConfig.
@@ -408,6 +454,26 @@ func (c *backrestClient) GeneratePairingToken(ctx context.Context, req *connect.
 	return c.generatePairingToken.CallUnary(ctx, req)
 }
 
+// DiscoverDocker calls v1.Backrest.DiscoverDocker.
+func (c *backrestClient) DiscoverDocker(ctx context.Context, req *connect.Request[emptypb.Empty]) (*connect.Response[v1.DiscoverDockerResponse], error) {
+	return c.discoverDocker.CallUnary(ctx, req)
+}
+
+// CreateDockerPlans calls v1.Backrest.CreateDockerPlans.
+func (c *backrestClient) CreateDockerPlans(ctx context.Context, req *connect.Request[v1.CreateDockerPlansRequest]) (*connect.Response[v1.Config], error) {
+	return c.createDockerPlans.CallUnary(ctx, req)
+}
+
+// UpdateSnapshotTags calls v1.Backrest.UpdateSnapshotTags.
+func (c *backrestClient) UpdateSnapshotTags(ctx context.Context, req *connect.Request[v1.UpdateSnapshotTagsRequest]) (*connect.Response[emptypb.Empty], error) {
+	return c.updateSnapshotTags.CallUnary(ctx, req)
+}
+
+// DiffSnapshots calls v1.Backrest.DiffSnapshots.
+func (c *backrestClient) DiffSnapshots(ctx context.Context, req *connect.Request[v1.DiffSnapshotsRequest]) (*connect.Response[v1.DiffSnapshotsResponse], error) {
+	return c.diffSnapshots.CallUnary(ctx, req)
+}
+
 // BackrestHandler is an implementation of the v1.Backrest service.
 type BackrestHandler interface {
 	GetConfig(context.Context, *connect.Request[emptypb.Empty]) (*connect.Response[v1.Config], error)
@@ -445,6 +511,14 @@ type BackrestHandler interface {
 	// GeneratePairingToken creates a new pairing token on the server that can be shared with clients to simplify peering.
 	// The token format is "<keyid>:<secret>#<instanceid>" — an opaque string the client pastes when adding a known host.
 	GeneratePairingToken(context.Context, *connect.Request[v1.GeneratePairingTokenRequest]) (*connect.Response[v1.GeneratePairingTokenResponse], error)
+	// DiscoverDocker returns a list of Docker containers and their volumes.
+	DiscoverDocker(context.Context, *connect.Request[emptypb.Empty]) (*connect.Response[v1.DiscoverDockerResponse], error)
+	// CreateDockerPlans bulk-creates plans based on discovered Docker volumes.
+	CreateDockerPlans(context.Context, *connect.Request[v1.CreateDockerPlansRequest]) (*connect.Response[v1.Config], error)
+	// UpdateSnapshotTags updates the tags for a list of snapshots.
+	UpdateSnapshotTags(context.Context, *connect.Request[v1.UpdateSnapshotTagsRequest]) (*connect.Response[emptypb.Empty], error)
+	// DiffSnapshots compares two snapshots and returns the differences.
+	DiffSnapshots(context.Context, *connect.Request[v1.DiffSnapshotsRequest]) (*connect.Response[v1.DiffSnapshotsResponse], error)
 }
 
 // NewBackrestHandler builds an HTTP handler from the service implementation. It returns the path on
@@ -586,6 +660,30 @@ func NewBackrestHandler(svc BackrestHandler, opts ...connect.HandlerOption) (str
 		connect.WithSchema(backrestMethods.ByName("GeneratePairingToken")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backrestDiscoverDockerHandler := connect.NewUnaryHandler(
+		BackrestDiscoverDockerProcedure,
+		svc.DiscoverDocker,
+		connect.WithSchema(backrestMethods.ByName("DiscoverDocker")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backrestCreateDockerPlansHandler := connect.NewUnaryHandler(
+		BackrestCreateDockerPlansProcedure,
+		svc.CreateDockerPlans,
+		connect.WithSchema(backrestMethods.ByName("CreateDockerPlans")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backrestUpdateSnapshotTagsHandler := connect.NewUnaryHandler(
+		BackrestUpdateSnapshotTagsProcedure,
+		svc.UpdateSnapshotTags,
+		connect.WithSchema(backrestMethods.ByName("UpdateSnapshotTags")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backrestDiffSnapshotsHandler := connect.NewUnaryHandler(
+		BackrestDiffSnapshotsProcedure,
+		svc.DiffSnapshots,
+		connect.WithSchema(backrestMethods.ByName("DiffSnapshots")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/v1.Backrest/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case BackrestGetConfigProcedure:
@@ -632,6 +730,14 @@ func NewBackrestHandler(svc BackrestHandler, opts ...connect.HandlerOption) (str
 			backrestGetSummaryDashboardHandler.ServeHTTP(w, r)
 		case BackrestGeneratePairingTokenProcedure:
 			backrestGeneratePairingTokenHandler.ServeHTTP(w, r)
+		case BackrestDiscoverDockerProcedure:
+			backrestDiscoverDockerHandler.ServeHTTP(w, r)
+		case BackrestCreateDockerPlansProcedure:
+			backrestCreateDockerPlansHandler.ServeHTTP(w, r)
+		case BackrestUpdateSnapshotTagsProcedure:
+			backrestUpdateSnapshotTagsHandler.ServeHTTP(w, r)
+		case BackrestDiffSnapshotsProcedure:
+			backrestDiffSnapshotsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -727,4 +833,20 @@ func (UnimplementedBackrestHandler) GetSummaryDashboard(context.Context, *connec
 
 func (UnimplementedBackrestHandler) GeneratePairingToken(context.Context, *connect.Request[v1.GeneratePairingTokenRequest]) (*connect.Response[v1.GeneratePairingTokenResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("v1.Backrest.GeneratePairingToken is not implemented"))
+}
+
+func (UnimplementedBackrestHandler) DiscoverDocker(context.Context, *connect.Request[emptypb.Empty]) (*connect.Response[v1.DiscoverDockerResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("v1.Backrest.DiscoverDocker is not implemented"))
+}
+
+func (UnimplementedBackrestHandler) CreateDockerPlans(context.Context, *connect.Request[v1.CreateDockerPlansRequest]) (*connect.Response[v1.Config], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("v1.Backrest.CreateDockerPlans is not implemented"))
+}
+
+func (UnimplementedBackrestHandler) UpdateSnapshotTags(context.Context, *connect.Request[v1.UpdateSnapshotTagsRequest]) (*connect.Response[emptypb.Empty], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("v1.Backrest.UpdateSnapshotTags is not implemented"))
+}
+
+func (UnimplementedBackrestHandler) DiffSnapshots(context.Context, *connect.Request[v1.DiffSnapshotsRequest]) (*connect.Response[v1.DiffSnapshotsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("v1.Backrest.DiffSnapshots is not implemented"))
 }

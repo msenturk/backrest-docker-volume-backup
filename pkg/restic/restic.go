@@ -1,6 +1,7 @@
 package restic
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -473,6 +474,32 @@ func (r *Repo) Stats(ctx context.Context, opts ...GenericOption) (*RepoStats, er
 		return nil, err
 	}
 	return &stats, nil
+}
+
+func (r *Repo) Diff(ctx context.Context, snapshotIDBase string, snapshotIDTarget string, opts ...GenericOption) ([]*DiffEntry, error) {
+	args := []string{"diff", "--json", snapshotIDBase, snapshotIDTarget}
+	cmd := r.commandWithContext(ctx, args, opts...)
+	errorCollector := errorMessageCollector{}
+	output := bytes.NewBuffer(nil)
+	r.handleOutput(cmd, withStdOutTo(output), withAllTo(&errorCollector), withLogWriterFromContext(ctx))
+
+	if err := cmd.Run(); err != nil {
+		return nil, errorCollector.AddCmdOutputToError(cmd, fmt.Errorf("error running command: %w", err))
+	}
+
+	var entries []*DiffEntry
+	scanner := bufio.NewScanner(output)
+	for scanner.Scan() {
+		var entry DiffEntry
+		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
+			continue
+		}
+		if entry.MessageType == "change" {
+			entries = append(entries, &entry)
+		}
+	}
+
+	return entries, nil
 }
 
 // AddTags adds tags to the specified snapshots.
