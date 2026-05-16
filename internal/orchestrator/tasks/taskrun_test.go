@@ -539,7 +539,7 @@ func TestRestoreTaskRun(t *testing.T) {
 			cfg := newTestConfig(repo)
 			runner := setupTestRunner(t, cfg, tc.fake)
 
-			task := NewOneoffRestoreTask(repo, "plan1", 1, time.Now(), testSnapshotID, "/data", "/tmp/restore")
+			task := NewOneoffRestoreTask(repo, "plan1", 1, time.Now(), testSnapshotID, "/data", "/tmp/restore", false, false)
 			st := nextAndCreate(t, task, runner)
 
 			err := task.Run(context.Background(), st, runner)

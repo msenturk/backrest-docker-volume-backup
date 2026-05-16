@@ -45,7 +45,7 @@ import {
   GetOperationsRequestSchema,
   OpSelectorSchema,
 } from "../../../gen/ts/v1/service_pb";
-import { PlanSchema } from "../../../gen/ts/v1/config_pb";
+import { PlanSchema, Hook_Condition } from "../../../gen/ts/v1/config_pb";
 import { Operation, OperationStatus } from "../../../gen/ts/v1/operations_pb";
 import { create } from "@bufbuild/protobuf";
 import { alerts, formatErrorAlert } from "../../components/common/Alerts";
@@ -224,15 +224,22 @@ export const DockerDiscoveryPage = () => {
       preHooks.push(`docker exec ${container.name} mongodump --out /tmp/dump`);
       postHooks.push(`rm -rf /tmp/dump`);
     }
+const hooks: any[] = [];
+hooks.push(...preHooks.map(command => ({
+  conditions: [Hook_Condition.SNAPSHOT_START],
+  action: {
+    case: "actionCommand",
+    value: { command }
+  }
+})));
+hooks.push(...postHooks.map(command => ({
+  conditions: [Hook_Condition.SNAPSHOT_END],
+  action: {
+    case: "actionCommand",
+    value: { command }
+  }
+})));
 
-    const hooks = preHooks.map(command => ({
-      command,
-      condition: [1 /* CONDITION_SNAPSHOT_START */],
-    }));
-    hooks.push(...postHooks.map(command => ({
-      command,
-      condition: [3 /* CONDITION_SNAPSHOT_END */],
-    })));
 
     return create(PlanSchema, {
       id: `docker-${container.name}-${volume.name || "vol"}`,
@@ -272,8 +279,12 @@ export const DockerDiscoveryPage = () => {
           });
 
           const template = getPlanTemplateForVolume(container, volume);
-          def.preHooks = template.hooks.filter(h => h.condition.includes(1)).map(h => h.command);
-          def.postHooks = template.hooks.filter(h => h.condition.includes(3)).map(h => h.command);
+          def.preHooks = template.hooks
+            .filter(h => h.conditions.includes(Hook_Condition.SNAPSHOT_START))
+            .map(h => h.action.case === "actionCommand" ? h.action.value.command : "");
+          def.postHooks = template.hooks
+            .filter(h => h.conditions.includes(Hook_Condition.SNAPSHOT_END))
+            .map(h => h.action.case === "actionCommand" ? h.action.value.command : "");
           
           plansToCreate.push(def);
         }
@@ -487,7 +498,7 @@ const LastSnapshotInfo = ({ operation }: { operation: Operation }) => {
     <Flex align="center" gap={1} color="fg.muted" fontSize="2xs">
       <FiClock size={10} />
       <Text fontWeight="medium">{m.op_type_snapshot()}:</Text>
-      <Code fontSize="3xs" variant="ghost" p={0}>{normalizeSnapshotId(snapshotId)}</Code>
+      <Code fontSize="3xs" variant="subtle" p={0}>{normalizeSnapshotId(snapshotId)}</Code>
       <Text>({ageStr})</Text>
     </Flex>
   );
