@@ -13,3 +13,11 @@ cmd/backrest/backrest
 .gemini
 .claude
 webui/dist-backup/
+
+# Test and Backup data
+test-backups/
+test-config/
+test-data/
+backups/
+data/
+config/
