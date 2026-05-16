@@ -57,7 +57,7 @@ Built with Go, Backrest is distributed as a standalone, lightweight binary with 
 ### Docker Discovery & Management
 <p align="center">
    <!-- Placeholder for new Docker Discovery screenshot -->
-  <img width="2425" height="1293" alt="image" src="https://github.com/user-attachments/assets/74c56e76-31fc-4881-8d30-c5c53610e113" />
+<img src="https://github.com/user-attachments/assets/fa297897-fcbd-44a4-9d68-b4332cf49238" width="80%" />
 
 " width="80%" />
 </p>
