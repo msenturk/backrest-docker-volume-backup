@@ -8,8 +8,16 @@ import {
   Badge,
   Spinner,
   Center,
+  createListCollection,
 } from "@chakra-ui/react";
 import { Button } from "../../components/ui/button";
+import {
+  SelectRoot,
+  SelectTrigger,
+  SelectValueText,
+  SelectContent,
+  SelectItem,
+} from "../../components/ui/select";
 import { backrestService } from "../../api/client";
 import {
   DiffSnapshotsRequestSchema,
@@ -22,8 +30,6 @@ import { FormModal } from "../../components/common/FormModal";
 import { alerts, formatErrorAlert } from "../../components/common/Alerts";
 import * as m from "../../paraglide/messages";
 import { formatBytes, normalizeSnapshotId } from "../../lib/formatting";
-import { SelectRoot, SelectTrigger, SelectValueText, SelectContent, SelectItem } from "../../components/ui/select";
-import { createListCollection } from "@chakra-ui/react";
 
 export const SnapshotDiffModal = ({
   repoId,
@@ -48,15 +54,14 @@ export const SnapshotDiffModal = ({
           create(ListSnapshotsRequestSchema, { repoId })
         );
         // Filter out the base snapshot and sort by time (newest first)
-        setSnapshots(
-          resp.snapshots
-            .filter((s) => s.id !== baseSnapshotId)
-            .sort((a, b) => {
-              if (b.unixTimeMs > a.unixTimeMs) return 1;
-              if (b.unixTimeMs < a.unixTimeMs) return -1;
-              return 0;
-            })
-        );
+        const filtered = resp.snapshots
+          .filter((s) => s.id !== baseSnapshotId)
+          .sort((a, b) => {
+            if (b.unixTimeMs > a.unixTimeMs) return 1;
+            if (b.unixTimeMs < a.unixTimeMs) return -1;
+            return 0;
+          });
+        setSnapshots(filtered);
       } catch (e: any) {
         alerts.error(formatErrorAlert(e, "Failed to fetch snapshots"));
       } finally {
@@ -85,12 +90,12 @@ export const SnapshotDiffModal = ({
     }
   };
 
-  const snapshotCollection = useListCollection({
+  const snapshotCollection = useMemo(() => createListCollection({
     items: snapshots.map((s) => ({
       label: `${normalizeSnapshotId(s.id!).slice(0, 8)} (${new Date(Number(s.unixTimeMs)).toLocaleString()})`,
       value: s.id!,
     })),
-  });
+  }), [snapshots]);
 
   return (
     <FormModal
@@ -115,11 +120,12 @@ export const SnapshotDiffModal = ({
                   value={[targetSnapshotId]}
                   onValueChange={(e) => setTargetSnapshotId(e.value[0])}
                   disabled={isLoadingSnapshots || isDiffing}
+                  positioning={{ strategy: "fixed" }}
                 >
                   <SelectTrigger>
                     <SelectValueText placeholder={m.snapshot_diff_select_target()} />
                   </SelectTrigger>
-                  <SelectContent portalled={false}>
+                  <SelectContent zIndex={2000}>
                     {snapshotCollection.items.map((item) => (
                       <SelectItem item={item} key={item.value}>
                         {item.label}
@@ -189,9 +195,4 @@ export const SnapshotDiffModal = ({
       </Stack>
     </FormModal>
   );
-};
-
-// Helper since createListCollection might not be available directly or needs wrapping
-const useListCollection = ({ items }: { items: { label: string; value: string }[] }) => {
-    return useMemo(() => createListCollection({ items }), [items]);
 };

@@ -62,19 +62,26 @@ func restoreHelper(ctx context.Context, st ScheduledTask, taskRunner TaskRunner,
 	if stopContainer {
 		d, err := docker.NewDiscoverer()
 		if err == nil {
-			containerId, _ := d.FindContainerByHostPath(ctx, target)
-			if containerId != "" {
-				zap.L().Info("stopping container for restore", zap.String("containerId", containerId))
-				if err := d.StopContainer(ctx, containerId); err != nil {
-					zap.L().Warn("failed to stop container for restore", zap.Error(err), zap.String("containerId", containerId))
-				} else {
-					defer func() {
-						zap.L().Info("restarting container after restore", zap.String("containerId", containerId))
-						if err := d.StartContainer(context.Background(), containerId); err != nil {
-							zap.L().Error("failed to restart container after restore", zap.Error(err), zap.String("containerId", containerId))
-						}
-					}()
+			containerIds, _ := d.FindContainersByHostPath(ctx, target)
+			if len(containerIds) > 0 {
+				zap.L().Info("stopping containers for restore", zap.Strings("containerIds", containerIds))
+				var stoppedIds []string
+				for _, id := range containerIds {
+					if err := d.StopContainer(ctx, id); err != nil {
+						zap.L().Warn("failed to stop container for restore", zap.Error(err), zap.String("containerId", id))
+					} else {
+						stoppedIds = append(stoppedIds, id)
+					}
 				}
+
+				defer func() {
+					for _, id := range stoppedIds {
+						zap.L().Info("restarting container after restore", zap.String("containerId", id))
+						if err := d.StartContainer(context.Background(), id); err != nil {
+							zap.L().Error("failed to restart container after restore", zap.Error(err), zap.String("containerId", id))
+						}
+					}
+				}()
 			}
 		}
 	}

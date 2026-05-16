@@ -1,0 +1,52 @@
+services:
+  backrest:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: backrest
+    restart: unless-stopped
+    ports:
+      - "9898:9898"
+    volumes:
+      - ./data:/data:Z
+      - ./config:/config:Z
+      # This is where your backups will be stored on the host
+      - ./backups:/home/backups:Z
+      # Required for Podman Auto-Discovery
+      - /run/user/1000/podman/podman.sock:/var/run/docker.sock:ro
+      # Mount volume storage for discovery and restoration
+      - /home/ms/.local/share/containers/storage/volumes:/home/ms/.local/share/containers/storage/volumes:rw,Z
+    environment:
+      - BACKREST_CONFIG=/config/config.json
+      - BACKREST_DATA_DIR=/data
+
+  # Postgres demo service
+  test-db:
+    image: postgres:15-alpine
+    container_name: backrest-db
+    environment:
+      - POSTGRES_PASSWORD=example
+    volumes:
+      - test-db-data:/var/lib/postgresql/data:Z
+
+  # MySQL demo service
+  test-mysql:
+    image: mysql:8.0
+    container_name: backrest-mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=example
+      - MYSQL_DATABASE=demo
+    volumes:
+      - test-mysql-data:/var/lib/mysql:Z
+
+  # Redis demo service
+  test-redis:
+    image: redis:7-alpine
+    container_name: backrest-redis
+    volumes:
+      - test-redis-data:/data:Z
+
+volumes:
+  test-db-data:
+  test-mysql-data:
+  test-redis-data:

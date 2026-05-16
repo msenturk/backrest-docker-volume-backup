@@ -1,0 +1,34 @@
+# Build stage for WebUI
+FROM node:20-alpine AS webui-builder
+WORKDIR /webui
+COPY webui/package*.json ./
+RUN npm install --legacy-peer-deps
+COPY webui/ ./
+# We need buf to generate TS files if they aren't already there, 
+# but they should be in the context if I just generated them.
+# The previous 'buf generate' step already updated webui/gen/ts
+RUN npm run build
+
+# Build stage for Go
+FROM golang:1.26-alpine AS go-builder
+RUN apk add --no-cache git
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+# Copy built webui to the location Go expects for embedding
+COPY --from=webui-builder /webui/dist ./webui/dist
+RUN go build -o /backrest ./cmd/backrest
+RUN go build -o /docker-entrypoint ./cmd/docker-entrypoint
+
+# Final stage
+FROM alpine:latest
+RUN apk --no-cache add tini ca-certificates curl bash rclone openssh tzdata docker-cli
+COPY --from=go-builder /backrest /backrest
+COPY --from=go-builder /docker-entrypoint /docker-entrypoint
+# Install restic dependency
+RUN /backrest --install-deps-only
+RUN mkdir -p /bin && mv /root/.local/share/backrest/restic /bin/restic
+
+ENTRYPOINT ["/sbin/tini", "--", "/docker-entrypoint"]
+CMD ["/backrest"]

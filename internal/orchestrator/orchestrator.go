@@ -11,6 +11,7 @@ import (
 
 	v1 "github.com/garethgeorge/backrest/gen/go/v1"
 	"github.com/garethgeorge/backrest/internal/config"
+	"github.com/garethgeorge/backrest/internal/docker"
 	"github.com/garethgeorge/backrest/internal/logstore"
 	"github.com/garethgeorge/backrest/internal/metric"
 	"github.com/garethgeorge/backrest/internal/oplog"
@@ -108,6 +109,20 @@ func NewOrchestrator(resticBin string, cfgMgr *config.ConfigManager, log *oplog.
 			op.Status = v1.OperationStatus_STATUS_ERROR
 			op.DisplayMessage = "Operation was incomplete when orchestrator was restarted."
 			op.UnixTimeEndMs = op.UnixTimeStartMs
+
+			// Recovery logic: if it was a restore, try to restart any containers that might have been stopped
+			if restoreOp, ok := op.Op.(*v1.Operation_OperationRestore); ok {
+				zap.S().Infof("attempting to recover containers for interrupted restore: %v", op.Id)
+				d, err := docker.NewDiscoverer()
+				if err == nil {
+					containerIds, _ := d.FindContainersByHostPath(context.Background(), restoreOp.OperationRestore.Target)
+					for _, id := range containerIds {
+						zap.S().Infof("restarting container %s after interrupted restore", id)
+						_ = d.StartContainer(context.Background(), id)
+					}
+				}
+			}
+
 			if err := log.Update(op); err != nil {
 				return nil, fmt.Errorf("update incomplete operation: %w", err)
 			}

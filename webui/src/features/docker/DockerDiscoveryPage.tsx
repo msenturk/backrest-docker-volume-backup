@@ -33,6 +33,7 @@ import {
   FiRefreshCcw,
   FiExternalLink,
   FiClock,
+  FiRadio,
 } from "react-icons/fi";
 import { backrestService } from "../../api/client";
 import { useConfig } from "../../app/provider";
@@ -44,6 +45,7 @@ import {
   GetOperationsRequestSchema,
   OpSelectorSchema,
 } from "../../../gen/ts/v1/service_pb";
+import { PlanSchema } from "../../../gen/ts/v1/config_pb";
 import { Operation, OperationStatus } from "../../../gen/ts/v1/operations_pb";
 import { create } from "@bufbuild/protobuf";
 import { alerts, formatErrorAlert } from "../../components/common/Alerts";
@@ -77,10 +79,12 @@ import { OperationRow } from "../operations/OperationRow";
 import { useResourceStatus } from "../../api/resourceStatus";
 import { colorForStatus, nameForStatus, displayTypeToString, getTypeForDisplay } from "../../api/flowDisplayAggregator";
 import { normalizeSnapshotId } from "../../lib/formatting";
+import { AddPlanModal } from "../plans/AddPlanModal";
 
 export const DockerDiscoveryPage = () => {
   const [config, setConfig] = useConfig();
   const [containers, setContainers] = useState<DockerContainer[]>([]);
+  const [isRemote, setIsRemote] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedVolumes, setSelectedVolumes] = useState<Record<string, boolean>>({});
   const [selectedRepo, setSelectedRepo] = useState<string>("");
@@ -139,6 +143,7 @@ export const DockerDiscoveryPage = () => {
     try {
       const resp = await backrestService.discoverDocker({});
       setContainers(resp.containers);
+      setIsRemote(resp.hostIsRemote);
     } catch (e: any) {
       alerts.error(formatErrorAlert(e, m.dashboard_error_fetch()));
     } finally {
@@ -198,20 +203,20 @@ export const DockerDiscoveryPage = () => {
     );
   };
 
-  const getPlanDefForVolume = (container: DockerContainer, volume: any) => {
+  const getPlanTemplateForVolume = (container: DockerContainer, volume: any) => {
     const preHooks: string[] = [];
     const postHooks: string[] = [];
 
-    // Expanded smart hooks detection
+    // Expanded smart hooks detection (best effort defaults)
     const image = container.image.toLowerCase();
     if (image.includes("postgres")) {
-      preHooks.push(`docker exec ${container.name} pg_dumpall -U postgres > /tmp/dump.sql`);
+      preHooks.push(`docker exec ${container.name} pg_dumpall -U postgres > /tmp/dump.sql # Note: ensure PGPASSWORD is set or .pgpass exists`);
       postHooks.push(`rm /tmp/dump.sql`);
     } else if (image.includes("mysql")) {
-      preHooks.push(`docker exec ${container.name} mysqldump -uroot -pexample --all-databases > /tmp/dump.sql`);
+      preHooks.push(`docker exec ${container.name} mysqldump --all-databases > /tmp/dump.sql # Note: ensure credentials in /root/.my.cnf`);
       postHooks.push(`rm /tmp/dump.sql`);
     } else if (image.includes("mariadb")) {
-      preHooks.push(`docker exec ${container.name} mariadb-dump -uroot -pexample --all-databases > /tmp/dump.sql`);
+      preHooks.push(`docker exec ${container.name} mariadb-dump --all-databases > /tmp/dump.sql`);
       postHooks.push(`rm /tmp/dump.sql`);
     } else if (image.includes("redis")) {
       preHooks.push(`docker exec ${container.name} redis-cli save`);
@@ -220,12 +225,32 @@ export const DockerDiscoveryPage = () => {
       postHooks.push(`rm -rf /tmp/dump`);
     }
 
-    return create(DockerPlanDefinitionSchema, {
-      containerName: container.name,
-      volumeName: volume.name,
-      path: volume.source,
-      preHooks,
-      postHooks,
+    const hooks = preHooks.map(command => ({
+      command,
+      condition: [1 /* CONDITION_SNAPSHOT_START */],
+    }));
+    hooks.push(...postHooks.map(command => ({
+      command,
+      condition: [3 /* CONDITION_SNAPSHOT_END */],
+    })));
+
+    return create(PlanSchema, {
+      id: `docker-${container.name}-${volume.name || "vol"}`,
+      repo: selectedRepo,
+      paths: [volume.source],
+      hooks,
+      schedule: {
+        schedule: {
+          case: "cron",
+          value: "0 3 * * *",
+        },
+      },
+      retention: {
+        policy: {
+          case: "policyKeepLastN",
+          value: 30,
+        },
+      },
     });
   };
 
@@ -240,7 +265,17 @@ export const DockerDiscoveryPage = () => {
     containers.forEach((container) => {
       container.volumes.forEach((volume) => {
         if (selectedVolumes[`${container.id}:${volume.source}`]) {
-          plansToCreate.push(getPlanDefForVolume(container, volume));
+          const def = create(DockerPlanDefinitionSchema, {
+            containerName: container.name,
+            volumeName: volume.name,
+            path: volume.source,
+          });
+
+          const template = getPlanTemplateForVolume(container, volume);
+          def.preHooks = template.hooks.filter(h => h.condition.includes(1)).map(h => h.command);
+          def.postHooks = template.hooks.filter(h => h.condition.includes(3)).map(h => h.command);
+          
+          plansToCreate.push(def);
         }
       });
     });
@@ -278,38 +313,17 @@ export const DockerDiscoveryPage = () => {
     }
   };
 
-  const handleCreateSinglePlan = async (container: DockerContainer, volume: any) => {
+  const handleCreateSinglePlan = (container: DockerContainer, volume: any) => {
     if (!selectedRepo) {
       alerts.error(m.add_plan_modal_validation_repository_required());
       return;
     }
 
-    setIsSubmitting(true);
-    try {
-      const newConfig = await backrestService.createDockerPlans({
-        plans: [getPlanDefForVolume(container, volume)],
-        repoId: selectedRepo,
-        schedule: {
-          schedule: {
-            value: "0 3 * * *",
-            case: "cron",
-          },
-        },
-        retention: {
-          policy: {
-            value: 30,
-            case: "policyKeepLastN",
-          },
-        },
-      });
-      setConfig(newConfig);
-      alerts.success(m.docker_create_plans_success());
-      fetchDockerResources();
-    } catch (e: any) {
-      alerts.error(formatErrorAlert(e, m.add_plan_modal_error_operation_prefix()));
-    } finally {
-      setIsSubmitting(false);
-    }
+    showModal(
+      <AddPlanModal 
+        template={getPlanTemplateForVolume(container, volume)} 
+      />
+    );
   };
 
   const filteredContainers = useMemo(() => {
@@ -348,7 +362,16 @@ export const DockerDiscoveryPage = () => {
   return (
     <Stack gap={6} width="full">
       <Flex justify="space-between" align="center" flexWrap="wrap" gap={4}>
-        <Heading size="lg">{m.docker_discovery_title()}</Heading>
+        <Flex align="center" gap={4}>
+          <Heading size="lg">{m.docker_discovery_title()}</Heading>
+          {isRemote && (
+            <Tooltip content="Backrest is connected to a remote Docker host via DOCKER_HOST. Paths cannot be verified locally.">
+              <Badge colorPalette="blue" variant="solid" size="md">
+                <FiRadio style={{ marginRight: "4px" }} /> Remote Host
+              </Badge>
+            </Tooltip>
+          )}
+        </Flex>
         <Flex gap={2}>
           <SetupHelper containers={containers} selectedVolumes={selectedVolumes} />
           <Button

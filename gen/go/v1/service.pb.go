@@ -241,6 +241,7 @@ func (x *OpSelector) GetModnoGte() int64 {
 type DiscoverDockerResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Containers    []*DockerContainer     `protobuf:"bytes,1,rep,name=containers,proto3" json:"containers,omitempty"`
+	HostIsRemote  bool                   `protobuf:"varint,2,opt,name=host_is_remote,json=hostIsRemote,proto3" json:"host_is_remote,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -280,6 +281,13 @@ func (x *DiscoverDockerResponse) GetContainers() []*DockerContainer {
 		return x.Containers
 	}
 	return nil
+}
+
+func (x *DiscoverDockerResponse) GetHostIsRemote() bool {
+	if x != nil {
+		return x.HostIsRemote
+	}
+	return false
 }
 
 type DockerContainer struct {
@@ -2289,11 +2297,12 @@ const file_v1_service_proto_rawDesc = "" +
 	"\n" +
 	"\b_flow_idB\f\n" +
 	"\n" +
-	"_modno_gte\"M\n" +
+	"_modno_gte\"s\n" +
 	"\x16DiscoverDockerResponse\x123\n" +
 	"\n" +
 	"containers\x18\x01 \x03(\v2\x13.v1.DockerContainerR\n" +
-	"containers\"\xb6\x01\n" +
+	"containers\x12$\n" +
+	"\x0ehost_is_remote\x18\x02 \x01(\bR\fhostIsRemote\"\xb6\x01\n" +
 	"\x0fDockerContainer\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +

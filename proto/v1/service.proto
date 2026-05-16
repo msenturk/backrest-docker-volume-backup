@@ -101,6 +101,7 @@ message OpSelector {
 
 message DiscoverDockerResponse {
   repeated DockerContainer containers = 1;
+  bool host_is_remote = 2;
 }
 
 message DockerContainer {

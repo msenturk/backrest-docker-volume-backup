@@ -1002,12 +1002,15 @@ func (s *BackrestHandler) DiscoverDocker(ctx context.Context, req *connect.Reque
 		return nil, fmt.Errorf("failed to get config: %w", err)
 	}
 
-	containers, err := d.Discover(ctx, cfg)
+	containers, isRemote, err := d.Discover(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to discover docker containers: %w (ensure the docker socket has sufficient permissions)", err)
 	}
 
-	return connect.NewResponse(&v1.DiscoverDockerResponse{Containers: containers}), nil
+	return connect.NewResponse(&v1.DiscoverDockerResponse{
+		Containers:   containers,
+		HostIsRemote: isRemote,
+	}), nil
 }
 
 func (s *BackrestHandler) CreateDockerPlans(ctx context.Context, req *connect.Request[v1.CreateDockerPlansRequest]) (*connect.Response[v1.Config], error) {
