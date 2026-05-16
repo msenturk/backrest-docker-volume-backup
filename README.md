@@ -37,6 +37,11 @@ Built with Go, Backrest is distributed as a standalone, lightweight binary with 
   - Browse and restore files from snapshots
   - Configurable notifications (Discord, Slack, Shoutrrr, Gotify, Healthchecks)
   - Pre/post backup command hooks to execute shell scripts
+- **Docker Integration**:
+  - Automatic discovery of local containers and volumes
+  - Smart hook detection for databases (Postgres, MySQL, MariaDB, Redis, MongoDB)
+  - Individual volume management: "Create Plan", "Backup Now", and "Restore" directly from the discovery view
+  - Real-time status badges showing last backup time and health
 - **Storage Options**:
   - Compatible with rclone remotes
   - Supports all restic storage backends (S3, B2, Azure, GCS, local, SFTP, and [all rclone remotes](https://rclone.org/))
@@ -48,6 +53,13 @@ Built with Go, Backrest is distributed as a standalone, lightweight binary with 
    <img src="https://f000.backblazeb2.com/file/gshare/screenshots/backrest-1.11.1-browse-snapshot.png" width="80%" />
    <img src="https://f000.backblazeb2.com/file/gshare/screenshots/backrest-1.11.1-add-plan.png" width="80%" />
 </p>
+
+### Docker Discovery & Management
+<p align="center">
+   <!-- Placeholder for new Docker Discovery screenshot -->
+   <img src="https://f000.backblazeb2.com/file/gshare/screenshots/backrest-docker-discovery.png" width="80%" />
+</p>
+
 
 ---
 
