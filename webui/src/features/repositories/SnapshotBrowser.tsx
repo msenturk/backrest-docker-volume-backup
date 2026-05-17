@@ -504,13 +504,6 @@ const RestoreModal = ({
     });
   }, [containers]);
 
-  useEffect(() => {
-    if (targetContainer) {
-      setTarget(targetContainer);
-      setIsOriginalLocation(false);
-    }
-  }, [targetContainer]);
-
   const defaultPath = useMemo(() => {
     if (path === pathSeparator) {
       return "";
@@ -521,10 +514,12 @@ const RestoreModal = ({
   useEffect(() => {
     if (isOriginalLocation) {
       setTarget(path);
+    } else if (targetContainer) {
+      setTarget(targetContainer);
     } else {
       setTarget(defaultPath);
     }
-  }, [isOriginalLocation, defaultPath, path]);
+  }, [isOriginalLocation, defaultPath, path, targetContainer]);
 
   const handleValid = () => {
     // Basic validation
@@ -605,7 +600,7 @@ const RestoreModal = ({
                   placeholder={m.restore_modal_select_container()}
                 />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent portalled={false}>
                 {containerCollection.items.map((item) => (
                   <SelectItem item={item} key={item.value}>
                     {item.label}
@@ -638,9 +633,12 @@ const RestoreModal = ({
           <URIAutocomplete
             placeholder="Restoring to Downloads"
             value={target}
-            onChange={(val: string) =>
-              !isOriginalLocation && setTarget(val || "")
-            }
+            onChange={(val: string) => {
+              if (!isOriginalLocation) {
+                setTarget(val || "");
+                setTargetContainer("");
+              }
+            }}
             disabled={isOriginalLocation}
           />
         </Field>

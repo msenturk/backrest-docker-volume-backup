@@ -21,3 +21,5 @@ test-data/
 backups/
 data/
 config/
+
+local-backups/*

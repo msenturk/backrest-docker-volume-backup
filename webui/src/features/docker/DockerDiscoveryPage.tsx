@@ -77,6 +77,7 @@ import { Switch } from "../../components/ui/switch";
 import { useShowModal } from "../../components/common/ModalManager";
 import { DockerRestoreModal } from "./DockerRestoreModal";
 import { OperationRow } from "../operations/OperationRow";
+import { SnapshotBrowser } from "../repositories/SnapshotBrowser";
 import { useResourceStatus } from "../../api/resourceStatus";
 import { subscribeToOperations, unsubscribeFromOperations } from "../../api/oplog";
 import { colorForStatus, nameForStatus, displayTypeToString, getTypeForDisplay } from "../../api/flowDisplayAggregator";
@@ -242,16 +243,15 @@ export const DockerDiscoveryPage = () => {
     const preHooks: string[] = [];
     const postHooks: string[] = [];
 
-    // Expanded smart hooks detection (best effort defaults)
     const image = container.image.toLowerCase();
     if (image.includes("postgres")) {
-      preHooks.push(`docker exec ${container.name} pg_dumpall -U postgres > /tmp/dump.sql # Note: ensure PGPASSWORD is set or .pgpass exists`);
+      preHooks.push(`docker exec ${container.name} sh -c 'export PGPASSWORD="$POSTGRES_PASSWORD"; exec pg_dumpall -U postgres' > /tmp/dump.sql`);
       postHooks.push(`rm /tmp/dump.sql`);
     } else if (image.includes("mysql")) {
-      preHooks.push(`docker exec ${container.name} mysqldump --all-databases > /tmp/dump.sql # Note: ensure credentials in /root/.my.cnf`);
+      preHooks.push(`docker exec ${container.name} sh -c 'export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysqldump --all-databases -uroot' > /tmp/dump.sql`);
       postHooks.push(`rm /tmp/dump.sql`);
     } else if (image.includes("mariadb")) {
-      preHooks.push(`docker exec ${container.name} mariadb-dump --all-databases > /tmp/dump.sql`);
+      preHooks.push(`docker exec ${container.name} sh -c 'export MYSQL_PWD="$MARIADB_ROOT_PASSWORD"; exec mariadb-dump --all-databases -uroot' > /tmp/dump.sql`);
       postHooks.push(`rm /tmp/dump.sql`);
     } else if (image.includes("redis")) {
       preHooks.push(`docker exec ${container.name} redis-cli save`);
@@ -316,13 +316,13 @@ export const DockerDiscoveryPage = () => {
 
           const image = container.image.toLowerCase();
           if (image.includes("postgres")) {
-            preHooks.push(`docker exec ${container.name} pg_dumpall -U postgres > /tmp/dump.sql`);
+            preHooks.push(`docker exec ${container.name} sh -c 'export PGPASSWORD="$POSTGRES_PASSWORD"; exec pg_dumpall -U postgres' > /tmp/dump.sql`);
             postHooks.push(`rm /tmp/dump.sql`);
           } else if (image.includes("mysql")) {
-            preHooks.push(`docker exec ${container.name} mysqldump --all-databases > /tmp/dump.sql`);
+            preHooks.push(`docker exec ${container.name} sh -c 'export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysqldump --all-databases -uroot' > /tmp/dump.sql`);
             postHooks.push(`rm /tmp/dump.sql`);
           } else if (image.includes("mariadb")) {
-            preHooks.push(`docker exec ${container.name} mariadb-dump --all-databases > /tmp/dump.sql`);
+            preHooks.push(`docker exec ${container.name} sh -c 'export MYSQL_PWD="$MARIADB_ROOT_PASSWORD"; exec mariadb-dump --all-databases -uroot' > /tmp/dump.sql`);
             postHooks.push(`rm /tmp/dump.sql`);
           } else if (image.includes("redis")) {
             preHooks.push(`docker exec ${container.name} redis-cli save`);
@@ -525,6 +525,88 @@ export const DockerDiscoveryPage = () => {
   );
 };
 
+const ClickableSnapshotId = ({
+  snapshotId,
+  repoId,
+  repoGuid,
+  planId,
+  snapshotOpId,
+}: {
+  snapshotId: string;
+  repoId?: string;
+  repoGuid?: string;
+  planId?: string;
+  snapshotOpId?: bigint;
+}) => {
+  const showModal = useShowModal();
+  const [config] = useConfig();
+
+  const resolvedRepoId = useMemo(() => {
+    if (repoId) return repoId;
+    if (planId) {
+      const plan = config?.plans.find((p) => p.id === planId);
+      if (plan) return plan.repo || "";
+    }
+    return "";
+  }, [repoId, planId, config]);
+
+  const resolvedRepoGuid = useMemo(() => {
+    if (repoGuid) return repoGuid;
+    const rId = resolvedRepoId;
+    if (rId) {
+      const repo = config?.repos.find((r) => r.id === rId);
+      if (repo) return repo.guid;
+    }
+    return "";
+  }, [repoGuid, resolvedRepoId, config]);
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    showModal(
+      <DialogRoot open={true} onOpenChange={(e) => !e.open && showModal(null)} size="lg">
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Browse Snapshot {normalizeSnapshotId(snapshotId)}</DialogTitle>
+          </DialogHeader>
+          <DialogBody maxH="70vh" overflowY="auto">
+            <SnapshotBrowser
+              snapshotId={snapshotId}
+              snapshotOpId={snapshotOpId}
+              repoId={resolvedRepoId}
+              repoGuid={resolvedRepoGuid}
+              planId={planId}
+            />
+          </DialogBody>
+          <DialogFooter>
+            <DialogCloseTrigger asChild>
+              <Button variant="outline" onClick={() => showModal(null)}>
+                {m.button_close()}
+              </Button>
+            </DialogCloseTrigger>
+          </DialogFooter>
+        </DialogContent>
+      </DialogRoot>
+    );
+  };
+
+  return (
+    <Code
+      fontSize="3xs"
+      variant="subtle"
+      p={1}
+      cursor="pointer"
+      _hover={{ bg: "bg.emphasized", color: "colorPalette.fg" }}
+      onClick={handleClick}
+      display="inline-flex"
+      alignItems="center"
+      gap={1}
+    >
+      {normalizeSnapshotId(snapshotId)}
+      <FiExternalLink size={10} />
+    </Code>
+  );
+};
+
 const LastSnapshotInfo = ({ operation }: { operation: Operation }) => {
   let snapshotId = "";
   if (operation.op.case === "operationIndexSnapshot") {
@@ -550,7 +632,13 @@ const LastSnapshotInfo = ({ operation }: { operation: Operation }) => {
     <Flex align="center" gap={1} color="fg.muted" fontSize="2xs">
       <FiClock size={10} />
       <Text fontWeight="medium">{m.op_type_snapshot()}:</Text>
-      <Code fontSize="3xs" variant="subtle" p={0}>{normalizeSnapshotId(snapshotId)}</Code>
+      <ClickableSnapshotId
+        snapshotId={snapshotId}
+        repoId={operation.repoId}
+        repoGuid={operation.repoGuid}
+        planId={operation.planId}
+        snapshotOpId={operation.id}
+      />
       <Text>({ageStr})</Text>
     </Flex>
   );

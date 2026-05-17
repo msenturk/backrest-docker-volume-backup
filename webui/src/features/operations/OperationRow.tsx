@@ -36,6 +36,9 @@ import {
   FiTag,
   FiPlus,
   FiGitCommit,
+  FiPlay,
+  FiRefreshCcw,
+  FiExternalLink,
 } from "react-icons/fi";
 import { ProgressCircle } from "../../components/ui/progress-circle";
 import { ProgressBar, ProgressRoot } from "../../components/ui/progress";
@@ -57,9 +60,20 @@ import {
 import {
   ClearHistoryRequestSchema,
   UpdateSnapshotTagsRequestSchema,
+  BackupRequestSchema,
 } from "../../../gen/ts/v1/service_pb";
 import { backrestService } from "../../api/client";
+import { useConfig } from "../../app/provider";
 import { useShowModal } from "../../components/common/ModalManager";
+import {
+  DialogRoot,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogBody,
+  DialogFooter,
+  DialogCloseTrigger,
+} from "../../components/ui/dialog";
 import { alerts } from "../../components/common/Alerts";
 import {
   displayTypeToString,
@@ -119,8 +133,48 @@ export const OperationRow = ({
   showDelete?: boolean;
 }>) => {
   const showModal = useShowModal();
+  const [config] = useConfig();
   const displayType = getTypeForDisplay(operation);
   const setRefresh = useState(0)[1];
+
+  const handleBackupNow = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await backrestService.backup(
+        create(BackupRequestSchema, { value: operation.planId }),
+      );
+      alerts.success(m.plan_backup_scheduled());
+    } catch (e: any) {
+      alerts.error(m.plan_error_backup() + e.message);
+    }
+  };
+
+  const handleRestore = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const plan = config?.plans.find((p) => p.id === operation.planId);
+    if (!plan) {
+      alerts.error("Plan not found in configuration.");
+      return;
+    }
+    const originalPath = plan.paths[0] || "";
+    const volumeName = plan.id;
+
+    import("../docker/DockerRestoreModal")
+      .then(({ DockerRestoreModal }) => {
+        showModal(
+          <DockerRestoreModal
+            planId={operation.planId}
+            repoId={operation.repoId || plan.repo}
+            volumeName={volumeName}
+            originalPath={originalPath}
+            onClose={() => showModal(null)}
+          />,
+        );
+      })
+      .catch((err) => {
+        alerts.error("Failed to load restore modal: " + err.message);
+      });
+  };
 
   useEffect(() => {
     if (operation.status === OperationStatus.STATUS_INPROGRESS) {
@@ -246,7 +300,10 @@ export const OperationRow = ({
   const expandedBodyItems: string[] = [];
 
   if (operation.op.case === "operationBackup") {
-    if (operation.status === OperationStatus.STATUS_INPROGRESS) {
+    if (
+      operation.status === OperationStatus.STATUS_INPROGRESS ||
+      operation.status === OperationStatus.STATUS_PENDING
+    ) {
       expandedBodyItems.push("details");
     }
     const backupOp = operation.op.value;
@@ -255,8 +312,10 @@ export const OperationRow = ({
       label: m.op_row_backup_details(),
       children: (
         <BackupOperationStatus
+          operation={operation}
           status={backupOp.lastStatus}
           dryRun={backupOp.dryRun}
+          operationStatus={operation.status}
         />
       ),
     });
@@ -297,6 +356,9 @@ export const OperationRow = ({
         <SnapshotDetails
           snapshot={snapshotOp.snapshot!}
           repoId={operation.repoId}
+          repoGuid={operation.repoGuid}
+          planId={operation.planId}
+          snapshotOpId={operation.id}
         />
       ),
     });
@@ -424,6 +486,28 @@ export const OperationRow = ({
               {title}
             </Flex>
           </Box>
+          {operation.planId &&
+            (operation.op.case === "operationBackup" ||
+              operation.op.case === "operationIndexSnapshot") && (
+            <Group attached>
+              <Button
+                size="xs"
+                variant="outline"
+                colorPalette="blue"
+                onClick={handleBackupNow}
+              >
+                <FiPlay /> {m.plan_button_backup()}
+              </Button>
+              <Button
+                size="xs"
+                variant="outline"
+                colorPalette="green"
+                onClick={handleRestore}
+              >
+                <FiRefreshCcw /> {m.op_type_restore()}
+              </Button>
+            </Group>
+          )}
           {menuItems.length > 0 && (
             <MenuRoot>
               <MenuTrigger asChild>
@@ -469,12 +553,100 @@ export const OperationRow = ({
   );
 };
 
+const ClickableSnapshotId = ({
+  snapshotId,
+  repoId,
+  repoGuid,
+  planId,
+  snapshotOpId,
+}: {
+  snapshotId: string;
+  repoId?: string;
+  repoGuid?: string;
+  planId?: string;
+  snapshotOpId?: bigint;
+}) => {
+  const showModal = useShowModal();
+  const [config] = useConfig();
+
+  const resolvedRepoId = React.useMemo(() => {
+    if (repoId) return repoId;
+    if (planId) {
+      const plan = config?.plans.find((p) => p.id === planId);
+      if (plan) return plan.repo || "";
+    }
+    return "";
+  }, [repoId, planId, config]);
+
+  const resolvedRepoGuid = React.useMemo(() => {
+    if (repoGuid) return repoGuid;
+    const rId = resolvedRepoId;
+    if (rId) {
+      const repo = config?.repos.find((r) => r.id === rId);
+      if (repo) return repo.guid;
+    }
+    return "";
+  }, [repoGuid, resolvedRepoId, config]);
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    showModal(
+      <DialogRoot open={true} onOpenChange={(e) => !e.open && showModal(null)} size="lg">
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Browse Snapshot {normalizeSnapshotId(snapshotId)}</DialogTitle>
+          </DialogHeader>
+          <DialogBody maxH="70vh" overflowY="auto">
+            <SnapshotBrowser
+              snapshotId={snapshotId}
+              snapshotOpId={snapshotOpId}
+              repoId={resolvedRepoId}
+              repoGuid={resolvedRepoGuid}
+              planId={planId}
+            />
+          </DialogBody>
+          <DialogFooter>
+            <DialogCloseTrigger asChild>
+              <Button variant="outline" onClick={() => showModal(null)}>
+                {m.button_close()}
+              </Button>
+            </DialogCloseTrigger>
+          </DialogFooter>
+        </DialogContent>
+      </DialogRoot>
+    );
+  };
+
+  return (
+    <Code
+      fontSize="3xs"
+      variant="subtle"
+      p={1}
+      cursor="pointer"
+      _hover={{ bg: "bg.emphasized", color: "colorPalette.fg" }}
+      onClick={handleClick}
+      display="inline-flex"
+      alignItems="center"
+      gap={1}
+    >
+      {normalizeSnapshotId(snapshotId)}
+      <FiExternalLink size={10} />
+    </Code>
+  );
+};
+
 const SnapshotDetails = ({
   snapshot,
   repoId,
+  repoGuid,
+  planId,
+  snapshotOpId,
 }: {
   snapshot: ResticSnapshot;
   repoId: string;
+  repoGuid?: string;
+  planId?: string;
+  snapshotOpId?: bigint;
 }) => {
   const showModal = useShowModal();
   const [tags, setTags] = useState(snapshot.tags);
@@ -536,12 +708,22 @@ const SnapshotDetails = ({
   return (
     <>
       <Flex justify="space-between" align="center">
-        <Text>
-          <Text as="span" fontWeight="bold">
+        <Flex align="center" gap={2}>
+          <Text fontWeight="bold">
             {m.op_row_snapshot_id()}
           </Text>
-          {normalizeSnapshotId(snapshot.id!)}
-        </Text>
+          {repoGuid ? (
+            <ClickableSnapshotId
+              snapshotId={snapshot.id!}
+              repoId={repoId}
+              repoGuid={repoGuid}
+              planId={planId}
+              snapshotOpId={snapshotOpId}
+            />
+          ) : (
+            normalizeSnapshotId(snapshot.id!)
+          )}
+        </Flex>
         <Button size="xs" variant="outline" onClick={showDiff}>
           <FiGitCommit /> {m.snapshot_diff_compare()}
         </Button>
@@ -716,9 +898,15 @@ const RestoreOperationStatus = ({ operation }: { operation: Operation }) => {
       <SimpleGrid columns={2} gap={4}>
         <Box>
           <Text fontWeight="bold">{m.op_row_snapshot_id()}</Text>
-          <Text fontFamily="mono">
-            {normalizeSnapshotId(operation.snapshotId!)}
-          </Text>
+          <Box mt={1}>
+            <ClickableSnapshotId
+              snapshotId={operation.snapshotId!}
+              repoId={operation.repoId}
+              repoGuid={operation.repoGuid}
+              planId={operation.planId}
+              snapshotOpId={operation.id}
+            />
+          </Box>
         </Box>
         {lastStatus && (
           <>
@@ -743,14 +931,30 @@ const RestoreOperationStatus = ({ operation }: { operation: Operation }) => {
   );
 };
 
+import { Spinner } from "@chakra-ui/react";
+
 const BackupOperationStatus = ({
+  operation,
   status,
   dryRun,
+  operationStatus,
 }: {
+  operation?: Operation;
   status?: BackupProgressEntry;
   dryRun?: boolean;
+  operationStatus?: OperationStatus;
 }) => {
   if (!status) {
+    if (operationStatus === OperationStatus.STATUS_PENDING) {
+      return (
+        <Flex align="center" gap={2} py={2}>
+          <Spinner size="xs" color="blue.500" />
+          <Text fontSize="xs" color="fg.muted" fontStyle="italic">
+            Backup is queued and pending execution...
+          </Text>
+        </Flex>
+      );
+    }
     return <>{m.op_row_no_status()}</>;
   }
 
@@ -802,14 +1006,26 @@ const BackupOperationStatus = ({
     const sum = status.entry.value;
     return (
       <>
-        <Text>
-          <Text as="span" fontWeight="bold">
+        <Flex align="center" gap={2}>
+          <Text fontWeight="bold">
             {m.op_row_snapshot_id()}
           </Text>
-          {sum.snapshotId !== "" && !dryRun
-            ? normalizeSnapshotId(sum.snapshotId!)
-            : m.op_row_no_snapshot()}
-        </Text>
+          {sum.snapshotId !== "" && !dryRun ? (
+            operation ? (
+              <ClickableSnapshotId
+                snapshotId={sum.snapshotId!}
+                repoId={operation.repoId}
+                repoGuid={operation.repoGuid}
+                planId={operation.planId}
+                snapshotOpId={operation.id}
+              />
+            ) : (
+              normalizeSnapshotId(sum.snapshotId!)
+            )
+          ) : (
+            m.op_row_no_snapshot()
+          )}
+        </Flex>
         <SimpleGrid columns={{ base: 1, md: 3 }} gap={4} mt={2}>
           <Box>
             <Text fontWeight="bold">{m.op_row_files_added()}</Text>

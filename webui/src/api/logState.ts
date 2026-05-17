@@ -254,29 +254,13 @@ export class OplogState {
   }
 }
 
-// Defining matchers for each field in OpSelector to determine if an operation matches the selector.
-// Type system asserts that a check must exist for each field in OpSelector.
-const selectorFieldMatchers: {
-  [K in keyof OpSelector]: (op: Operation, sel: OpSelector) => boolean;
-} = {
-  planId: (op, sel) => op.planId === sel.planId,
-  repoGuid: (op, sel) => op.repoGuid === sel.repoGuid,
-  flowId: (op, sel) => op.flowId === sel.flowId,
-  instanceId: (op, sel) => op.instanceId === sel.instanceId,
-  snapshotId: (op, sel) => op.snapshotId === sel.snapshotId,
-  originalInstanceKeyid: (op, sel) =>
-    op.originalInstanceKeyid === sel.originalInstanceKeyid,
-  ids: (op: Operation, sel: OpSelector) =>
-    sel.ids.length === 0 || sel.ids.includes(op.id),
-  ["$typeName"]: (op: Operation, sel: OpSelector): boolean => true, // $typeName is a proto property that isn't used for matching
-};
-
 export const matchSelector = (selector: OpSelector, op: Operation): boolean => {
-  for (const key in selector) {
-    const matcher = selectorFieldMatchers[key as keyof OpSelector];
-    if (matcher && !matcher(op, selector)) {
-      return false;
-    }
-  }
+  if (selector.planId !== undefined && selector.planId !== "" && op.planId !== selector.planId) return false;
+  if (selector.repoGuid !== undefined && selector.repoGuid !== "" && op.repoGuid !== selector.repoGuid) return false;
+  if (selector.flowId !== undefined && selector.flowId !== 0n && op.flowId !== selector.flowId) return false;
+  if (selector.instanceId !== undefined && selector.instanceId !== "" && op.instanceId !== selector.instanceId) return false;
+  if (selector.snapshotId !== undefined && selector.snapshotId !== "" && op.snapshotId !== selector.snapshotId) return false;
+  if (selector.originalInstanceKeyid !== undefined && selector.originalInstanceKeyid !== "" && op.originalInstanceKeyid !== selector.originalInstanceKeyid) return false;
+  if (selector.ids && selector.ids.length > 0 && !selector.ids.includes(op.id)) return false;
   return true;
 };

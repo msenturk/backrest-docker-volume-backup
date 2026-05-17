@@ -12,8 +12,8 @@ services:
       - ./data:/data:Z
       - ./config:/config:Z
       # This is where your backups will be stored on the host
-      - ./backups:/repos:Z
-      - ./backups:/home/backups:Z
+      - ./local-backups:/repos:Z
+      - ./local-backups:/home/backups:Z
       # Required for Podman Auto-Discovery
       - /run/user/1000/podman/podman.sock:/var/run/docker.sock:ro
       # Mount volume storage for discovery and restoration

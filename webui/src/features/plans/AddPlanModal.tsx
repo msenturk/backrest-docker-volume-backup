@@ -34,6 +34,7 @@ import { isWindows } from "../../state/buildcfg";
 import { ConfirmButton } from "../../components/common/SpinButton";
 import { useConfig } from "../../app/provider";
 import { backrestService } from "../../api/client";
+import { ActiveMountsList } from "../../components/common/ActiveMountsList";
 import {
   clone,
   create,
@@ -391,6 +392,13 @@ export const AddPlanModal = ({ template, onSaveOverride, isTemplate }: { templat
               autocompleteType="uri"
               placeholder={m.add_plan_modal_field_paths()}
             />
+            {!isWindows && (
+              <ActiveMountsList
+                currentValue={(getField(["paths"]) || []).join(",")}
+                title={m.active_mounts_backup_title()}
+                description={m.active_mounts_backup_desc()}
+              />
+            )}
             {!isWindows && (
               <Box p={2} bg="blue.subtle" borderRadius="md" borderWidth={1} borderColor="blue.400">
                 <CText fontSize="xs" color="fg.muted">

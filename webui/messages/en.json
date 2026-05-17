@@ -510,5 +510,15 @@
   "snapshot_tags_label": "Tags",
   "docker_restore_modal_title": "Restore Docker Volume: {name}",
   "docker_restore_modal_select_snapshot": "Select Snapshot",
-  "docker_restore_modal_no_snapshots": "No snapshots found for this volume."
+  "docker_restore_modal_no_snapshots": "No snapshots found for this volume.",
+  "active_mounts_title_default": "Active Docker Volume Mappings",
+  "active_mounts_desc_default": "Shows where folders in your Backrest container map to on your host system.",
+  "active_mounts_match_found": "Match Found",
+  "active_mounts_host": "Host",
+  "active_mounts_active": "Active",
+  "active_mounts_container": "Container",
+  "active_mounts_backup_title": "Active Backup Volume Mappings",
+  "active_mounts_backup_desc": "Map folders inside the container to exact host directories that you want to back up.",
+  "active_mounts_repo_title": "Active Repository Volume Mappings",
+  "active_mounts_repo_desc": "Map local container paths (e.g., /home/backups or /repos) to exact host locations where backups persist."
 }

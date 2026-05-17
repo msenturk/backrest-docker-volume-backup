@@ -24,6 +24,7 @@ import {
 } from "../../../gen/ts/v1/service_pb";
 import { StringValueSchema } from "../../../gen/ts/types/value_pb";
 import { URIAutocomplete } from "../../components/common/URIAutocomplete";
+import { ActiveMountsList } from "../../components/common/ActiveMountsList";
 import { alerts, formatErrorAlert } from "../../components/common/Alerts";
 import { namePattern } from "../../lib/util";
 import { backrestService } from "../../api/client";
@@ -847,6 +848,13 @@ export const AddRepoModal = ({ template, onSaveOverride }: { template: Repo | nu
                     value={getField(["uri"])}
                     onChange={(val: string) => updateField(["uri"], val)}
                   />
+                  {!isWindows && (
+                    <ActiveMountsList
+                      currentValue={getField(["uri"]) || ""}
+                      title={m.active_mounts_repo_title()}
+                      description={m.active_mounts_repo_desc()}
+                    />
+                  )}
                   {!isWindows && getField(["uri"]) && !getField(["uri"]).includes("://") && !getField(["uri"]).includes(":") && (
                     <Box mt={2} p={2} bg="orange.subtle" borderRadius="md" borderWidth={1} borderColor="orange.400">
                       <CText fontSize="xs" color="fg.muted">
