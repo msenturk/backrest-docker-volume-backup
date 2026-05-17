@@ -215,7 +215,9 @@ export const DockerRestoreModal = ({
                 checked={stopContainer}
                 onCheckedChange={(e) => setStopContainer(!!e.checked)}
               >
-                Stop container during restore (Recommended for databases)
+                <Tooltip content="Backrest will automatically identify and stop all containers mounting this volume to ensure data consistency. They will be restarted after restore completes.">
+                  <Text as="span">Stop associated container(s) during restore</Text>
+                </Tooltip>
               </Checkbox>
 
               {useOriginalLocation && (
