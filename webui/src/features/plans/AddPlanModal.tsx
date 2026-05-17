@@ -80,7 +80,7 @@ const planDefaults = create(PlanSchema, {
   },
 });
 
-export const AddPlanModal = ({ template, onSaveOverride }: { template: Plan | null, onSaveOverride?: (plan: Plan) => Promise<void> }) => {
+export const AddPlanModal = ({ template, onSaveOverride, isTemplate }: { template: Plan | null, onSaveOverride?: (plan: Plan) => Promise<void>, isTemplate?: boolean }) => {
   const [confirmLoading, setConfirmLoading] = useState(false);
   const showModal = useShowModal();
   const [config, setConfig] = useConfig();
@@ -132,7 +132,7 @@ export const AddPlanModal = ({ template, onSaveOverride }: { template: Plan | nu
   const handleDestroy = async () => {
     setConfirmLoading(true);
     try {
-      if (!template)
+      if (!template || isTemplate)
         throw new Error(m.add_plan_modal_error_template_not_found());
 
       const configCopy = clone(ConfigSchema, config);
@@ -162,7 +162,7 @@ export const AddPlanModal = ({ template, onSaveOverride }: { template: Plan | nu
       if (!namePattern.test(formData.id)) {
         throw new Error(m.add_plan_modal_validation_plan_name_pattern());
       }
-      if (!template && config.plans.find((p) => p.id === formData.id)) {
+      if ((!template || isTemplate) && config.plans.find((p) => p.id === formData.id)) {
         throw new Error(m.add_plan_modal_validation_plan_exists());
       }
       if (!formData.repo) {
@@ -213,7 +213,7 @@ export const AddPlanModal = ({ template, onSaveOverride }: { template: Plan | nu
 
       const configCopy = clone(ConfigSchema, config);
 
-      if (template) {
+      if (template && !isTemplate) {
         const idx = configCopy.plans.findIndex((r) => r.id === template.id);
         if (idx === -1) throw new Error("failed to update plan, not found");
         configCopy.plans[idx] = plan;
@@ -262,7 +262,7 @@ export const AddPlanModal = ({ template, onSaveOverride }: { template: Plan | nu
       >
         {m.add_plan_modal_button_cancel()}
       </Button>
-      {template && (
+      {template && !isTemplate && (
         <ConfirmButton
           danger
           onClickAsync={handleDestroy}
@@ -282,7 +282,7 @@ export const AddPlanModal = ({ template, onSaveOverride }: { template: Plan | nu
       isOpen={true}
       onClose={() => showModal(null)}
       title={
-        template
+        template && !isTemplate
           ? m.add_plan_modal_title_update()
           : m.add_plan_modal_title_add()
       }
@@ -305,7 +305,7 @@ export const AddPlanModal = ({ template, onSaveOverride }: { template: Plan | nu
               invalid={
                 !!formData.id &&
                 (!namePattern.test(formData.id) ||
-                  (!template &&
+                  ((!template || isTemplate) &&
                     !!config.plans.find((p) => p.id === formData.id)))
               }
               errorText={
@@ -317,7 +317,7 @@ export const AddPlanModal = ({ template, onSaveOverride }: { template: Plan | nu
               <Input
                 value={getField(["id"])}
                 onChange={(e) => updateField(["id"], e.target.value)}
-                disabled={!!template}
+                disabled={!!template && !isTemplate}
                 placeholder={"plan" + ((config?.plans?.length || 0) + 1)}
               />
             </Field>
@@ -335,7 +335,7 @@ export const AddPlanModal = ({ template, onSaveOverride }: { template: Plan | nu
                 onValueChange={(e: any) =>
                   updateField(["repo"], e.value[0])
                 }
-                disabled={!!template}
+                disabled={!!template && !isTemplate}
                 width="full"
               >
                 {/* @ts-ignore */}
@@ -530,4 +530,3 @@ export const AddPlanModal = ({ template, onSaveOverride }: { template: Plan | nu
     </TwoPaneModal>
   );
 };
-

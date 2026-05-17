@@ -350,6 +350,7 @@ export const DockerDiscoveryPage = () => {
     showModal(
       <AddPlanModal 
         template={getPlanTemplateForVolume(container, volume)} 
+        isTemplate={true}
       />
     );
   };
