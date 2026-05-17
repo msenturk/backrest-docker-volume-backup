@@ -26,9 +26,11 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 COPY . .
 # Copy built webui to the location Go expects for embedding
 COPY --from=webui-builder /webui/dist ./webui/dist
-RUN --mount=type=cache,target=/root/.cache/go-build \
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
     go build -o /backrest ./cmd/backrest
-RUN --mount=type=cache,target=/root/.cache/go-build \
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
     go build -o /docker-entrypoint ./cmd/docker-entrypoint
 
 # Final stage

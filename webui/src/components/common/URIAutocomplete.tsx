@@ -28,6 +28,20 @@ export const URIAutocomplete = (props: any) => {
   // value is string
   const [items, setItems] = useState<{ label: string; value: string }[]>([]);
   const lastQueryRef = useRef<string>("");
+  const [knownMounts, setKnownMounts] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!isWindows) {
+      backrestService
+        .pathAutocomplete({ value: "/" })
+        .then((res: any) => {
+          if (res.values) {
+            setKnownMounts(res.values);
+          }
+        })
+        .catch((e) => console.error("Path autocomplete mounts fetch error:", e));
+    }
+  }, []);
 
   // Create collection for Combobox
   const collection = useMemo(
@@ -124,12 +138,11 @@ export const URIAutocomplete = (props: any) => {
       </ComboboxControl>
       <ComboboxContent zIndex={2000}>
         {collection.items.map((item) => {
-          // If running on Unix (Docker) and it's a first-level directory (e.g. /repos, /userdata) but not root /
+          // If running on Unix (Docker) and it's a known mount point from the backend
           const isContainerMount =
             !isWindows &&
             item.value !== "/" &&
-            item.value.startsWith("/") &&
-            item.value.split("/").filter(Boolean).length === 1;
+            knownMounts.includes(item.value);
 
           return (
             <ComboboxItem key={item.value} item={item}>
