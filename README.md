@@ -6,11 +6,6 @@
   </picture>
 </p>
 
-<p align="center">
-  <img src="https://github.com/garethgeorge/backrest/actions/workflows/test.yml/badge.svg" />
-  <img src="https://img.shields.io/github/downloads/garethgeorge/backrest/total" />
-  <img src="https://img.shields.io/docker/pulls/garethgeorge/backrest" />
-</p>
 
 ---
 
