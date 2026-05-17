@@ -42,6 +42,13 @@ clean:
     rm -f backrest
     cd webui && npm run clean
 
-# Run backend in development mode
-dev-backend:
-    go run ./cmd/backrest
+# Build everything for Windows
+windows: generate-windows build-windows
+
+# Run code generation for Windows assets
+generate-windows:
+    GOOS=windows go generate ./webui/webuiwin.go
+
+# Build the backrest binary for Windows
+build-windows:
+    GOOS=windows GOARCH=amd64 go build -o backrest.exe ./cmd/backrest
