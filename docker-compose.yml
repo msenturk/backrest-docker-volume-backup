@@ -8,10 +8,11 @@ services:
     ports:
       - "9898:9898"
     volumes:
+      - .:/app:Z
       - ./data:/data:Z
       - ./config:/config:Z
       # This is where your backups will be stored on the host
-      - ./backups:/home/backups:Z
+      - ./backups:/repos:Z
       # Required for Podman Auto-Discovery
       - /run/user/1000/podman/podman.sock:/var/run/docker.sock:ro
       # Mount volume storage for discovery and restoration
@@ -19,6 +20,23 @@ services:
     environment:
       - BACKREST_CONFIG=/config/config.json
       - BACKREST_DATA_DIR=/data
+    develop:
+      watch:
+        - action: rebuild
+          path: go.mod
+        - action: rebuild
+          path: go.sum
+        - action: rebuild
+          path: Dockerfile.test
+        - action: sync+restart
+          path: .
+          target: /app
+          ignore:
+            - webui/
+            - data/
+            - config/
+            - backups/
+            - .git/
 
   # Postgres demo service
   test-db:

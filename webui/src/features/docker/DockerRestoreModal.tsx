@@ -32,6 +32,7 @@ import {
 } from "../../components/ui/dialog";
 import { FiClock, FiRefreshCcw, FiAlertTriangle } from "react-icons/fi";
 import { Checkbox } from "../../components/ui/checkbox";
+import { Tooltip } from "../../components/ui/tooltip";
 import { Input } from "@chakra-ui/react";
 import { Field } from "../../components/ui/field";
 import { Alert } from "../../components/ui/alert";

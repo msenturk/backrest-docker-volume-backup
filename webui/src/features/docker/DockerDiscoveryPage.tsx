@@ -47,7 +47,7 @@ import {
   OpSelectorSchema,
 } from "../../../gen/ts/v1/service_pb";
 import { PlanSchema, Hook_Condition } from "../../../gen/ts/v1/config_pb";
-import { Operation, OperationStatus } from "../../../gen/ts/v1/operations_pb";
+import { Operation, OperationStatus, OperationEvent } from "../../../gen/ts/v1/operations_pb";
 import { create } from "@bufbuild/protobuf";
 import { alerts, formatErrorAlert } from "../../components/common/Alerts";
 import * as m from "../../paraglide/messages";
@@ -78,6 +78,7 @@ import { useShowModal } from "../../components/common/ModalManager";
 import { DockerRestoreModal } from "./DockerRestoreModal";
 import { OperationRow } from "../operations/OperationRow";
 import { useResourceStatus } from "../../api/resourceStatus";
+import { subscribeToOperations, unsubscribeFromOperations } from "../../api/oplog";
 import { colorForStatus, nameForStatus, displayTypeToString, getTypeForDisplay } from "../../api/flowDisplayAggregator";
 import { normalizeSnapshotId } from "../../lib/formatting";
 import { AddPlanModal } from "../plans/AddPlanModal";
@@ -92,12 +93,12 @@ export const DockerDiscoveryPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [groupByProject, setGroupByProject] = useState(true);
-  const [planOperations, setPlanOperations] = useState<Record<string, Operation>>({});
+  const [planOperations, setPlanOperations] = useState<Record<string, { latest?: Operation, lastSuccess?: Operation }>>({});
   const showModal = useShowModal();
 
   useEffect(() => {
     fetchDockerResources();
-  }, []);
+  }, [config?.plans?.length]);
 
   useEffect(() => {
     if (config?.repos.length && !selectedRepo) {
@@ -111,24 +112,23 @@ export const DockerDiscoveryPage = () => {
       if (!config?.plans.length) return;
       
       try {
-        const operations: Record<string, Operation> = {};
+        const operations: Record<string, { latest?: Operation, lastSuccess?: Operation }> = {};
         await Promise.all(config.plans.map(async (plan) => {
           const resp = await backrestService.getOperations(create(GetOperationsRequestSchema, {
             selector: {
               planId: plan.id,
             },
-            lastN: 5n,
+            lastN: 10n,
           }));
-          // Find the last operation that resulted in a snapshot or was a successful backup
-          const lastSuccess = resp.operations.find(op => 
+          
+          const sorted = [...resp.operations].sort((a, b) => Number(b.unixTimeStartMs - a.unixTimeStartMs));
+          const latest = sorted[0];
+          const lastSuccess = sorted.find(op => 
             op.status === OperationStatus.STATUS_SUCCESS && 
             (op.op.case === "operationIndexSnapshot" || op.op.case === "operationBackup")
           );
-          if (lastSuccess) {
-            operations[plan.id] = lastSuccess;
-          } else if (resp.operations.length > 0) {
-            operations[plan.id] = resp.operations[0];
-          }
+          
+          operations[plan.id] = { latest, lastSuccess };
         }));
         setPlanOperations(operations);
       } catch (e) {
@@ -137,6 +137,40 @@ export const DockerDiscoveryPage = () => {
     };
 
     fetchOps();
+
+    const handleEvent = (event?: OperationEvent) => {
+      if (!event?.event) return;
+      let ops: Operation[] = [];
+      if (event.event.case === "createdOperations" || event.event.case === "updatedOperations") {
+        ops = event.event.value.operations;
+      }
+      if (ops.length === 0) return;
+
+      setPlanOperations(prev => {
+        const next = { ...prev };
+        let changed = false;
+        ops.forEach(op => {
+          if (op.planId) {
+            const current = next[op.planId] || {};
+            const isNewer = !current.latest || op.unixTimeStartMs >= current.latest.unixTimeStartMs;
+            const isSuccess = op.status === OperationStatus.STATUS_SUCCESS && 
+                             (op.op.case === "operationIndexSnapshot" || op.op.case === "operationBackup");
+            
+            if (isNewer || isSuccess) {
+              next[op.planId] = {
+                latest: isNewer ? op : current.latest,
+                lastSuccess: isSuccess ? op : current.lastSuccess
+              };
+              changed = true;
+            }
+          }
+        });
+        return changed ? next : prev;
+      });
+    };
+
+    subscribeToOperations(handleEvent);
+    return () => unsubscribeFromOperations(handleEvent);
   }, [config?.plans?.length]);
 
   const fetchDockerResources = async () => {
@@ -586,7 +620,7 @@ const ContainerCard = ({
   onRestore: (planId: string, volumeName: string, originalPath: string) => void;
   onCreatePlan: (container: DockerContainer, volume: any) => void;
   onShowLogs: (operation: Operation) => void;
-  planOperations: Record<string, Operation>;
+  planOperations: Record<string, { latest?: Operation, lastSuccess?: Operation }>;
 }) => {
   const [isOpen, setIsOpen] = useState(true);
 
@@ -619,7 +653,9 @@ const ContainerCard = ({
             <Stack gap={3} mt={2}>
               {container.volumes.map((volume) => {
                 const isSelected = selectedVolumes[`${container.id}:${volume.source}`];
-                const lastOp = volume.planId ? planOperations[volume.planId] : undefined;
+                const ops = volume.planId ? planOperations[volume.planId] : undefined;
+                const latestOp = ops?.latest;
+                const lastSuccess = ops?.lastSuccess;
 
                 return (
                   <Box
@@ -653,7 +689,7 @@ const ContainerCard = ({
                             {volume.planId && (
                               <StatusBadge 
                                 planId={volume.planId} 
-                                lastOp={lastOp} 
+                                lastOp={latestOp} 
                                 onShowLogs={onShowLogs} 
                               />
                             )}
@@ -726,7 +762,7 @@ const ContainerCard = ({
                             </Text>
                           </Box>
                         </SimpleGrid>
-                        {lastOp && <Box mt={2}><LastSnapshotInfo operation={lastOp} /></Box>}
+                        {lastSuccess && <Box mt={2}><LastSnapshotInfo operation={lastSuccess} /></Box>}
                       </Box>
                     </Flex>
                   </Box>
@@ -762,9 +798,9 @@ const SetupHelper = ({
   if (selectedPaths.length === 0) return null;
 
   const composeFragment = selectedPaths
-    .map((p) => `      - ${p}:${p}:ro`)
+    .map((p) => `      - ${p}:${p}:rw # Change to :ro if restore support is not needed`)
     .join("\n");
-  const runFlags = selectedPaths.map((p) => `-v ${p}:${p}:ro`).join(" ");
+  const runFlags = selectedPaths.map((p) => `-v ${p}:${p}:rw`).join(" ");
 
   return (
     <DialogRoot size="lg">
@@ -779,7 +815,10 @@ const SetupHelper = ({
         </DialogHeader>
         <DialogBody>
           <Stack gap={4}>
-            <Text fontSize="sm">{m.docker_setup_helper_description()}</Text>
+            <Text fontSize="sm">
+              To back up the selected volumes, they must be mounted into the Backrest container. 
+              Use <b>:rw</b> if you want to be able to <b>restore</b> data directly to these volumes via the UI.
+            </Text>
 
             <Box>
               <Flex justify="space-between" align="center" mb={1}>
