@@ -31,7 +31,28 @@ down:
 
 # Rebuild and restart containers
 rebuild:
+    {{COMPOSE}} down
     {{COMPOSE}} up -d --build
+
+# Watch for changes and update the container automatically
+watch:
+    @if {{COMPOSE}} help watch > /dev/null 2>&1; then \
+        {{COMPOSE}} watch; \
+    else \
+        echo "Native watch not supported by {{DOCKER}}. Using simple polling loop..."; \
+        last_sum=""; \
+        while true; do \
+            new_sum=`find cmd internal pkg proto webui/src -type f -exec md5sum {} + | md5sum`; \
+            if [ "$new_sum" != "$last_sum" ]; then \
+                if [ "$last_sum" != "" ]; then \
+                    echo "Changes detected, rebuilding..."; \
+                    {{COMPOSE}} down && {{COMPOSE}} up -d --build; \
+                fi; \
+                last_sum="$new_sum"; \
+            fi; \
+            sleep 3; \
+        done; \
+    fi
 
 # Run all E2E tests
 test:
