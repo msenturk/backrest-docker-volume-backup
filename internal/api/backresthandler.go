@@ -811,6 +811,12 @@ func (s *BackrestHandler) GetDownloadURL(ctx context.Context, req *connect.Reque
 }
 
 func (s *BackrestHandler) PathAutocomplete(ctx context.Context, path *connect.Request[types.StringValue]) (*connect.Response[types.StringList], error) {
+	query := strings.TrimSpace(path.Msg.Value)
+	if query == "" || query == "/" || query == "\\" || query == "\\\\" {
+		mounts := getMounts()
+		return connect.NewResponse(&types.StringList{Values: mounts}), nil
+	}
+
 	ents, err := os.ReadDir(path.Msg.Value)
 	if errors.Is(err, os.ErrNotExist) {
 		return connect.NewResponse(&types.StringList{}), nil

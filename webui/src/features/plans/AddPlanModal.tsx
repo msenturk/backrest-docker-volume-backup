@@ -10,6 +10,7 @@ import {
   SelectValueText,
   Text as CText,
   Code,
+  Box,
 } from "@chakra-ui/react";
 import {
   AccordionItem,
@@ -29,6 +30,7 @@ import {
 import { FiFileText, FiFolder, FiClock, FiArchive, FiSliders } from "react-icons/fi";
 import { alerts, formatErrorAlert } from "../../components/common/Alerts";
 import { namePattern } from "../../lib/util";
+import { isWindows } from "../../state/buildcfg";
 import { ConfirmButton } from "../../components/common/SpinButton";
 import { useConfig } from "../../app/provider";
 import { backrestService } from "../../api/client";
@@ -389,6 +391,13 @@ export const AddPlanModal = ({ template, onSaveOverride, isTemplate }: { templat
               autocompleteType="uri"
               placeholder={m.add_plan_modal_field_paths()}
             />
+            {!isWindows && (
+              <Box p={2} bg="blue.subtle" borderRadius="md" borderWidth={1} borderColor="blue.400">
+                <CText fontSize="xs" color="fg.muted">
+                  💡 <strong>Docker Tip:</strong> To backup host folders, mount them as volumes in your <code>docker-compose.yml</code> (e.g., <code>- /home/user:/userdata:ro</code>) and select the container path (e.g., <code>/userdata</code>).
+                </CText>
+              </Box>
+            )}
 
             <DynamicList
               label={m.add_plan_modal_field_excludes()}

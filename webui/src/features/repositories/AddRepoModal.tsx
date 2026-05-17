@@ -847,6 +847,13 @@ export const AddRepoModal = ({ template, onSaveOverride }: { template: Repo | nu
                     value={getField(["uri"])}
                     onChange={(val: string) => updateField(["uri"], val)}
                   />
+                  {!isWindows && getField(["uri"]) && !getField(["uri"]).includes("://") && !getField(["uri"]).includes(":") && (
+                    <Box mt={2} p={2} bg="orange.subtle" borderRadius="md" borderWidth={1} borderColor="orange.400">
+                      <CText fontSize="xs" color="fg.muted">
+                        💡 <strong>Docker Tip:</strong> Local repository folders must be mounted in your <code>docker-compose.yml</code> (e.g., <code>- ./backups:/repos</code>) to persist on your host and show up here.
+                      </CText>
+                    </Box>
+                  )}
                 </Field>
 
                 {getField(["uri"])?.startsWith("sftp:") && (

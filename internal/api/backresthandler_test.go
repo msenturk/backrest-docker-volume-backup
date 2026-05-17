@@ -858,6 +858,52 @@ func TestRestore(t *testing.T) {
 	}
 }
 
+func TestPathAutocomplete(t *testing.T) {
+	t.Parallel()
+
+	sut := createSystemUnderTest(t, createConfigManager(&v1.Config{
+		Version:  4,
+		Modno:    1234,
+		Instance: "test",
+	}))
+
+	ctx := context.Background()
+
+	// Test with root/empty value to get mounts
+	res, err := sut.handler.PathAutocomplete(ctx, connect.NewRequest(&types.StringValue{Value: ""}))
+	if err != nil {
+		t.Fatalf("PathAutocomplete() empty error = %v", err)
+	}
+	if len(res.Msg.Values) == 0 {
+		t.Errorf("expected some mounts returned for empty query, got 0")
+	}
+
+	// Test with slash / backslash
+	resSlash, err := sut.handler.PathAutocomplete(ctx, connect.NewRequest(&types.StringValue{Value: "/"}))
+	if err != nil {
+		t.Fatalf("PathAutocomplete() slash error = %v", err)
+	}
+	if len(resSlash.Msg.Values) == 0 {
+		t.Errorf("expected some mounts returned for slash query, got 0")
+	}
+
+	// Test with a temporary directory that exists
+	tempDir := t.TempDir()
+	// write a file inside tempDir
+	err = os.WriteFile(filepath.Join(tempDir, "testfile.txt"), []byte("data"), 0644)
+	if err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	resDir, err := sut.handler.PathAutocomplete(ctx, connect.NewRequest(&types.StringValue{Value: tempDir}))
+	if err != nil {
+		t.Fatalf("PathAutocomplete() dir error = %v", err)
+	}
+	if !slices.Contains(resDir.Msg.Values, "testfile.txt") {
+		t.Errorf("expected values to contain 'testfile.txt', got %v", resDir.Msg.Values)
+	}
+}
+
 func TestRunCommand(t *testing.T) {
 	testutil.InstallZapLogger(t)
 	sut := createSystemUnderTest(t, createConfigManager(&v1.Config{

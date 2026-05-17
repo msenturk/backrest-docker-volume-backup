@@ -66,10 +66,16 @@ export const URIAutocomplete = (props: any) => {
           setItems([]);
           return;
         }
-        const newItems = res.values.map((v) => ({
-          label: searchVal + sep + v,
-          value: searchVal + sep + v,
-        }));
+        const newItems = res.values.map((v) => {
+          let fullPath = v;
+          if (!v.startsWith("/") && !v.includes(":\\") && !v.startsWith("\\\\")) {
+            fullPath = searchVal + sep + v;
+          }
+          return {
+            label: fullPath,
+            value: fullPath,
+          };
+        });
         setItems(newItems);
       })
       .catch((e) => console.error("Path autocomplete error:", e));
@@ -117,11 +123,36 @@ export const URIAutocomplete = (props: any) => {
         <ComboboxInput placeholder={placeholder} style={{ width: "100%" }} />
       </ComboboxControl>
       <ComboboxContent zIndex={2000}>
-        {collection.items.map((item) => (
-          <ComboboxItem key={item.value} item={item}>
-            {item.label}
-          </ComboboxItem>
-        ))}
+        {collection.items.map((item) => {
+          // If running on Unix (Docker) and it's a first-level directory (e.g. /repos, /userdata) but not root /
+          const isContainerMount =
+            !isWindows &&
+            item.value !== "/" &&
+            item.value.startsWith("/") &&
+            item.value.split("/").filter(Boolean).length === 1;
+
+          return (
+            <ComboboxItem key={item.value} item={item}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", gap: "8px" }}>
+                <span>{item.label}</span>
+                {isContainerMount && (
+                  <span style={{
+                    fontSize: "10px",
+                    padding: "2px 6px",
+                    borderRadius: "4px",
+                    backgroundColor: "#e0f2fe",
+                    color: "#0369a1",
+                    fontWeight: "bold",
+                    border: "1px solid #bae6fd",
+                    whiteSpace: "nowrap"
+                  }}>
+                    Mounted Volume
+                  </span>
+                )}
+              </div>
+            </ComboboxItem>
+          );
+        })}
       </ComboboxContent>
     </ComboboxRoot>
   );
