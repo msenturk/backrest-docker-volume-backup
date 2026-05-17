@@ -40,6 +40,7 @@ import { useConfig } from "../../app/provider";
 import {
   DockerContainer,
   CreateDockerPlansRequest,
+  CreateDockerPlansRequestSchema,
   DockerPlanDefinitionSchema,
   BackupRequestSchema,
   GetOperationsRequestSchema,
@@ -224,22 +225,26 @@ export const DockerDiscoveryPage = () => {
       preHooks.push(`docker exec ${container.name} mongodump --out /tmp/dump`);
       postHooks.push(`rm -rf /tmp/dump`);
     }
-const hooks: any[] = [];
-hooks.push(...preHooks.map(command => ({
-  conditions: [Hook_Condition.SNAPSHOT_START],
-  action: {
-    case: "actionCommand",
-    value: { command }
-  }
-})));
-hooks.push(...postHooks.map(command => ({
-  conditions: [Hook_Condition.SNAPSHOT_END],
-  action: {
-    case: "actionCommand",
-    value: { command }
-  }
-})));
 
+    const hooks: any[] = [];
+    preHooks.forEach(command => {
+      hooks.push({
+        conditions: [Hook_Condition.SNAPSHOT_START],
+        action: {
+          case: "actionCommand",
+          value: { command }
+        }
+      });
+    });
+    postHooks.forEach(command => {
+      hooks.push({
+        conditions: [Hook_Condition.SNAPSHOT_END],
+        action: {
+          case: "actionCommand",
+          value: { command }
+        }
+      });
+    });
 
     return create(PlanSchema, {
       id: `docker-${container.name}-${volume.name || "vol"}`,
@@ -267,26 +272,38 @@ hooks.push(...postHooks.map(command => ({
       return;
     }
 
-    const plansToCreate: CreateDockerPlansRequest["plans"] = [];
+    const plansToCreate: any[] = [];
 
     containers.forEach((container) => {
       container.volumes.forEach((volume) => {
         if (selectedVolumes[`${container.id}:${volume.source}`]) {
-          const def = create(DockerPlanDefinitionSchema, {
+          const preHooks: string[] = [];
+          const postHooks: string[] = [];
+
+          const image = container.image.toLowerCase();
+          if (image.includes("postgres")) {
+            preHooks.push(`docker exec ${container.name} pg_dumpall -U postgres > /tmp/dump.sql`);
+            postHooks.push(`rm /tmp/dump.sql`);
+          } else if (image.includes("mysql")) {
+            preHooks.push(`docker exec ${container.name} mysqldump --all-databases > /tmp/dump.sql`);
+            postHooks.push(`rm /tmp/dump.sql`);
+          } else if (image.includes("mariadb")) {
+            preHooks.push(`docker exec ${container.name} mariadb-dump --all-databases > /tmp/dump.sql`);
+            postHooks.push(`rm /tmp/dump.sql`);
+          } else if (image.includes("redis")) {
+            preHooks.push(`docker exec ${container.name} redis-cli save`);
+          } else if (image.includes("mongo")) {
+            preHooks.push(`docker exec ${container.name} mongodump --out /tmp/dump`);
+            postHooks.push(`rm -rf /tmp/dump`);
+          }
+
+          plansToCreate.push({
             containerName: container.name,
             volumeName: volume.name,
             path: volume.source,
+            preHooks,
+            postHooks,
           });
-
-          const template = getPlanTemplateForVolume(container, volume);
-          def.preHooks = template.hooks
-            .filter(h => h.conditions.includes(Hook_Condition.SNAPSHOT_START))
-            .map(h => h.action.case === "actionCommand" ? h.action.value.command : "");
-          def.postHooks = template.hooks
-            .filter(h => h.conditions.includes(Hook_Condition.SNAPSHOT_END))
-            .map(h => h.action.case === "actionCommand" ? h.action.value.command : "");
-          
-          plansToCreate.push(def);
         }
       });
     });
@@ -297,7 +314,7 @@ hooks.push(...postHooks.map(command => ({
 
     setIsSubmitting(true);
     try {
-      const newConfig = await backrestService.createDockerPlans({
+      const newConfig = await backrestService.createDockerPlans(create(CreateDockerPlansRequestSchema, {
         plans: plansToCreate,
         repoId: selectedRepo,
         schedule: {
@@ -312,7 +329,7 @@ hooks.push(...postHooks.map(command => ({
             case: "policyKeepLastN",
           },
         },
-      });
+      }));
       setConfig(newConfig);
       alerts.success(m.docker_create_plans_success());
       setSelectedVolumes({});

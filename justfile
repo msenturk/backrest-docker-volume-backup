@@ -1,3 +1,7 @@
+# Container engine (docker or podman)
+DOCKER := `if command -v podman >/dev/null 2>&1; then echo podman; else echo docker; fi`
+COMPOSE := `if command -v podman-compose >/dev/null 2>&1; then echo podman-compose; else echo "{{DOCKER}} compose"; fi`
+
 # Default: Build everything
 default: generate build
 
@@ -17,17 +21,17 @@ npm-install:
 build-frontend:
     cd webui && npm run build
 
-# Start the Docker Compose environment
+# Start the Docker/Podman Compose environment
 up:
-    docker compose up -d
+    {{COMPOSE}} up -d
 
-# Stop the Docker Compose environment
+# Stop the environment
 down:
-    docker compose down
+    {{COMPOSE}} down
 
-# Rebuild and restart Docker containers
+# Rebuild and restart containers
 rebuild:
-    docker compose up -d --build
+    {{COMPOSE}} up -d --build
 
 # Run all E2E tests
 test:
@@ -38,6 +42,6 @@ clean:
     rm -f backrest
     cd webui && npm run clean
 
-# Run backend in development mode (assumes frontend is built or served separately)
+# Run backend in development mode
 dev-backend:
     go run ./cmd/backrest
