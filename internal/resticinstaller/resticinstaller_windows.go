@@ -1,7 +1,6 @@
 package resticinstaller
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -21,10 +20,7 @@ func findHelper() (string, error) {
 		}
 
 		if _, err := os.Stat(resticBinOverride); err != nil {
-			if !errors.Is(err, os.ErrNotExist) {
-				return "", fmt.Errorf("check if restic binary exists at %v: %v", resticBinOverride, err)
-			}
-			return "", fmt.Errorf("no restic binary found at %v", resticBinOverride)
+			return "", fmt.Errorf("check if restic binary exists at %v: %v", resticBinOverride, err)
 		}
 		return resticBinOverride, nil
 	}
@@ -39,17 +35,23 @@ func findHelper() (string, error) {
 		}
 	}
 
-	// Windows specific logic: look for restic.exe adjacent to the executable.
-	// We use os.Args[0] to determine the location of the running binary.
-	resticInstallPath, _ := filepath.Abs(path.Join(path.Dir(os.Args[0]), "restic.exe"))
-	if _, err := os.Stat(resticInstallPath); err == nil {
-		// Found it. Check version but don't fail, just warn.
-		if err := assertResticVersion(resticInstallPath, false /* strict */); err != nil {
-			zap.S().Warnf("bundled restic binary %q may not be supported by backrest (this is expected if backrest was upgraded without the installer): %v", resticInstallPath, err)
-		}
-		return resticInstallPath, nil
+	// Windows specific logic: look for restic.exe in data directory.
+	resticInstallPath := filepath.Join(env.DataDir(), "restic.exe")
+
+	if err := os.MkdirAll(filepath.Dir(resticInstallPath), 0700); err != nil {
+		return "", fmt.Errorf("create restic install directory %v: %w", path.Dir(resticInstallPath), err)
 	}
 
-	// If not found on Windows, we fail. We do NOT auto-install/download.
-	return "", fmt.Errorf("restic binary not found at %q (bundled installer missing?) and not in PATH", resticInstallPath)
+	if err := findOrDownloadRestic(resticInstallPath); err != nil {
+		// Fallback to legacy location (adjacent to binary) before failing
+		legacyPath, _ := filepath.Abs(path.Join(path.Dir(os.Args[0]), "restic.exe"))
+		if _, errStat := os.Stat(legacyPath); errStat == nil {
+			zap.S().Infof("using bundled restic binary at %q", legacyPath)
+			return legacyPath, nil
+		}
+		return "", fmt.Errorf("find or download restic: %w", err)
+	}
+
+	zap.S().Infof("restic binary %q in data dir matches required version %v, it will be used for backrest commands", resticInstallPath, RequiredResticVersion)
+	return resticInstallPath, nil
 }
