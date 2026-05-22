@@ -137,7 +137,7 @@ jobs:
         run: |
           mkdir windows_installers
           foreach ($arch in "x86_64") {
-            $src = "backrest_Windows_$arch"
+            $src = "backrest-docker-volume-backup_Windows_$arch"
             Expand-Archive ".\${src}.zip"
             cp build\windows\* $src
             cp "restic_${arch}.exe" "${src}\restic.exe"
