@@ -11,19 +11,6 @@ before:
     - sh -c "GOOS=windows BACKREST_BUILD_VERSION={{.Version}} go generate ./..."
 
 builds:
-  - id: other
-    main: ./cmd/backrest
-    binary: backrest
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - darwin
-      - freebsd
-    goarch:
-      - amd64
-      - arm64
-    ldflags:
-      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
   - id: linux
     main: ./cmd/backrest
     binary: backrest
@@ -78,7 +65,6 @@ builds:
 archives:
   - id: default
     ids:
-      - other
       - linux
       - windows
     formats:
