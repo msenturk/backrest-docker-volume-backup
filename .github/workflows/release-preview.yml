@@ -13,6 +13,10 @@ on:
       - "*.md"
   workflow_dispatch:
 
+permissions:
+  contents: write
+  packages: write
+
 jobs:
   call-reusable-release:
     uses: ./.github/workflows/reusable-release.yml
