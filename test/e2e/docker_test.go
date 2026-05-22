@@ -145,6 +145,17 @@ func TestDockerE2E(t *testing.T) {
 	})
 
 	t.Run("create plan and backup", func(t *testing.T) {
+		// Ensure config has an Instance name so AddRepo doesn't fail
+		respConfig, err := apiClient.GetConfig(ctx, connect.NewRequest(&emptypb.Empty{}))
+		if err != nil {
+			t.Fatalf("GetConfig failed: %v", err)
+		}
+		cfg := respConfig.Msg
+		cfg.Instance = "test-instance"
+		if _, err := apiClient.SetConfig(ctx, connect.NewRequest(cfg)); err != nil {
+			t.Fatalf("SetConfig failed: %v", err)
+		}
+
 		// Add repo first
 		_, err = apiClient.AddRepo(ctx, connect.NewRequest(&v1.AddRepoRequest{
 			Repo: &v1.Repo{
@@ -210,6 +221,9 @@ func TestDockerE2E(t *testing.T) {
 		resp, err := apiClient.GetConfig(ctx, connect.NewRequest(&emptypb.Empty{}))
 		if err != nil {
 			t.Fatalf("GetConfig failed: %v", err)
+		}
+		if len(resp.Msg.Plans) == 0 {
+			t.Fatalf("no plans found in config")
 		}
 		planId := resp.Msg.Plans[0].Id
 
