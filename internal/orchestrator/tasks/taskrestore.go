@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -62,7 +63,11 @@ func restoreHelper(ctx context.Context, st ScheduledTask, taskRunner TaskRunner,
 	if stopContainer {
 		d, err := docker.NewDiscoverer()
 		if err == nil {
-			containerIds, _ := d.FindContainersByHostPath(ctx, target)
+			searchPath := target
+			if path != "" && path != "/" {
+				searchPath = filepath.Join(target, path)
+			}
+			containerIds, _ := d.FindContainersByHostPath(ctx, searchPath)
 			if len(containerIds) > 0 {
 				zap.L().Info("stopping containers for restore", zap.Strings("containerIds", containerIds))
 				var stoppedIds []string

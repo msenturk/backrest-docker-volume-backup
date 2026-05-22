@@ -513,7 +513,7 @@ const RestoreModal = ({
 
   useEffect(() => {
     if (isOriginalLocation) {
-      setTarget(path);
+      setTarget("/");
     } else if (targetContainer) {
       setTarget(targetContainer);
     } else {

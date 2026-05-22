@@ -242,22 +242,33 @@ export const DockerDiscoveryPage = () => {
   const getPlanTemplateForVolume = (container: DockerContainer, volume: any) => {
     const preHooks: string[] = [];
     const postHooks: string[] = [];
+    const extraPaths: string[] = [];
 
     const image = container.image.toLowerCase();
+    const safeVolumeName = volume.name ? volume.name.replace(/[^a-zA-Z0-9]/g, '-') : 'vol';
+    const dumpPath = `/tmp/backrest-${container.name}-${safeVolumeName}-dump`;
+
     if (image.includes("postgres")) {
-      preHooks.push(`docker exec ${container.name} sh -c 'export PGPASSWORD="$POSTGRES_PASSWORD"; exec pg_dumpall -U postgres' > /tmp/dump.sql`);
-      postHooks.push(`rm /tmp/dump.sql`);
+      preHooks.push(`docker exec ${container.name} sh -c 'export PGPASSWORD="$POSTGRES_PASSWORD"; exec pg_dumpall -U postgres' > ${dumpPath}.sql`);
+      postHooks.push(`rm -f ${dumpPath}.sql`);
+      extraPaths.push(`${dumpPath}.sql`);
     } else if (image.includes("mysql")) {
-      preHooks.push(`docker exec ${container.name} sh -c 'export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysqldump --all-databases -uroot' > /tmp/dump.sql`);
-      postHooks.push(`rm /tmp/dump.sql`);
+      preHooks.push(`docker exec ${container.name} sh -c 'export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysqldump --all-databases -uroot' > ${dumpPath}.sql`);
+      postHooks.push(`rm -f ${dumpPath}.sql`);
+      extraPaths.push(`${dumpPath}.sql`);
     } else if (image.includes("mariadb")) {
-      preHooks.push(`docker exec ${container.name} sh -c 'export MYSQL_PWD="$MARIADB_ROOT_PASSWORD"; exec mariadb-dump --all-databases -uroot' > /tmp/dump.sql`);
-      postHooks.push(`rm /tmp/dump.sql`);
+      preHooks.push(`docker exec ${container.name} sh -c 'export MYSQL_PWD="$MARIADB_ROOT_PASSWORD"; exec mariadb-dump --all-databases -uroot' > ${dumpPath}.sql`);
+      postHooks.push(`rm -f ${dumpPath}.sql`);
+      extraPaths.push(`${dumpPath}.sql`);
     } else if (image.includes("redis")) {
       preHooks.push(`docker exec ${container.name} redis-cli save`);
     } else if (image.includes("mongo")) {
-      preHooks.push(`docker exec ${container.name} mongodump --out /tmp/dump`);
-      postHooks.push(`rm -rf /tmp/dump`);
+      preHooks.push(`docker exec ${container.name} mongodump --out ${dumpPath}`);
+      postHooks.push(`rm -rf ${dumpPath}`);
+      extraPaths.push(dumpPath);
+    } else {
+      preHooks.push(`docker pause ${container.name}`);
+      postHooks.push(`docker unpause ${container.name}`);
     }
 
     const hooks: any[] = [];
@@ -283,7 +294,7 @@ export const DockerDiscoveryPage = () => {
     return create(PlanSchema, {
       id: `docker-${container.name}-${volume.name || "vol"}`,
       repo: selectedRepo,
-      paths: [volume.source],
+      paths: [volume.source, ...extraPaths],
       hooks,
       schedule: {
         schedule: {
@@ -313,28 +324,39 @@ export const DockerDiscoveryPage = () => {
         if (selectedVolumes[`${container.id}:${volume.source}`]) {
           const preHooks: string[] = [];
           const postHooks: string[] = [];
+          const extraPaths: string[] = [];
 
           const image = container.image.toLowerCase();
+          const safeVolumeName = volume.name ? volume.name.replace(/[^a-zA-Z0-9]/g, '-') : 'vol';
+          const dumpPath = `/tmp/backrest-${container.name}-${safeVolumeName}-dump`;
+
           if (image.includes("postgres")) {
-            preHooks.push(`docker exec ${container.name} sh -c 'export PGPASSWORD="$POSTGRES_PASSWORD"; exec pg_dumpall -U postgres' > /tmp/dump.sql`);
-            postHooks.push(`rm /tmp/dump.sql`);
+            preHooks.push(`docker exec ${container.name} sh -c 'export PGPASSWORD="$POSTGRES_PASSWORD"; exec pg_dumpall -U postgres' > ${dumpPath}.sql`);
+            postHooks.push(`rm -f ${dumpPath}.sql`);
+            extraPaths.push(`${dumpPath}.sql`);
           } else if (image.includes("mysql")) {
-            preHooks.push(`docker exec ${container.name} sh -c 'export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysqldump --all-databases -uroot' > /tmp/dump.sql`);
-            postHooks.push(`rm /tmp/dump.sql`);
+            preHooks.push(`docker exec ${container.name} sh -c 'export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysqldump --all-databases -uroot' > ${dumpPath}.sql`);
+            postHooks.push(`rm -f ${dumpPath}.sql`);
+            extraPaths.push(`${dumpPath}.sql`);
           } else if (image.includes("mariadb")) {
-            preHooks.push(`docker exec ${container.name} sh -c 'export MYSQL_PWD="$MARIADB_ROOT_PASSWORD"; exec mariadb-dump --all-databases -uroot' > /tmp/dump.sql`);
-            postHooks.push(`rm /tmp/dump.sql`);
+            preHooks.push(`docker exec ${container.name} sh -c 'export MYSQL_PWD="$MARIADB_ROOT_PASSWORD"; exec mariadb-dump --all-databases -uroot' > ${dumpPath}.sql`);
+            postHooks.push(`rm -f ${dumpPath}.sql`);
+            extraPaths.push(`${dumpPath}.sql`);
           } else if (image.includes("redis")) {
             preHooks.push(`docker exec ${container.name} redis-cli save`);
           } else if (image.includes("mongo")) {
-            preHooks.push(`docker exec ${container.name} mongodump --out /tmp/dump`);
-            postHooks.push(`rm -rf /tmp/dump`);
+            preHooks.push(`docker exec ${container.name} mongodump --out ${dumpPath}`);
+            postHooks.push(`rm -rf ${dumpPath}`);
+            extraPaths.push(dumpPath);
+          } else {
+            preHooks.push(`docker pause ${container.name}`);
+            postHooks.push(`docker unpause ${container.name}`);
           }
 
           plansToCreate.push({
             containerName: container.name,
             volumeName: volume.name,
-            path: volume.source,
+            path: [volume.source, ...extraPaths].join("|"),
             preHooks,
             postHooks,
           });

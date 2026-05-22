@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/docker/docker/api/types/container"
@@ -23,6 +24,26 @@ func NewDiscoverer() (*DiscoveryService, error) {
 	return &DiscoveryService{cli: cli}, nil
 }
 
+func pathIntersects(p1, p2 string) bool {
+	ep1, err1 := filepath.EvalSymlinks(p1)
+	if err1 != nil {
+		ep1 = p1
+	}
+	ep2, err2 := filepath.EvalSymlinks(p2)
+	if err2 != nil {
+		ep2 = p2
+	}
+
+	rel1, err1 := filepath.Rel(ep1, ep2)
+	if err1 == nil && !strings.HasPrefix(rel1, "..") {
+		return true // p2 is inside p1 or equal
+	}
+	rel2, err2 := filepath.Rel(ep2, ep1)
+	if err2 == nil && !strings.HasPrefix(rel2, "..") {
+		return true // p1 is inside p2
+	}
+	return p1 == p2
+}
 
 func (d *DiscoveryService) StopContainer(ctx context.Context, id string) error {
 	return d.cli.ContainerStop(ctx, id, container.StopOptions{})
@@ -46,7 +67,7 @@ func (d *DiscoveryService) FindContainersByHostPath(ctx context.Context, path st
 		}
 
 		for _, m := range info.Mounts {
-			if m.Source == path {
+			if pathIntersects(m.Source, path) {
 				results = append(results, c.ID)
 				break
 			}

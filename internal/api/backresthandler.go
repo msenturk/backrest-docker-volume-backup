@@ -1043,10 +1043,11 @@ func (s *BackrestHandler) CreateDockerPlans(ctx context.Context, req *connect.Re
 				planID = fmt.Sprintf("%s-%d", baseID, i)
 			}
 
+			paths := strings.Split(planDef.Path, "|")
 			newPlan := &v1.Plan{
 				Id:        planID,
 				Repo:      req.Msg.RepoId,
-				Paths:     []string{planDef.Path},
+				Paths:     paths,
 				Schedule:  req.Msg.Schedule,
 				Retention: req.Msg.Retention,
 			}
