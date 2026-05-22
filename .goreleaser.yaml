@@ -136,29 +136,7 @@ dockers_v2:
       - linux/arm/v7
       - linux/386
 
-brews:
-  - name: backrest
-    ids:
-      - default
-    homepage: https://github.com/msenturk/backrest-docker-volume-backup
-    description: "Backrest is a web UI and orchestrator for restic backup."
 
-    url_template: "https://github.com/msenturk/backrest-docker-volume-backup/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
-
-    commit_author:
-      name: goreleaserbot
-      email: bot@goreleaser.com
-
-    repository:
-      owner: msenturk
-      name: homebrew-backrest-tap
-      branch: main
-      token: "{{ .Env.HOMEBREW_GITHUB_TOKEN }}"
-
-    service: |
-      run opt_bin/"backrest"
-      error_log_path var/"log/backrest.log"
-      log_path var/"log/backrest.log"
 
 changelog:
   sort: asc
