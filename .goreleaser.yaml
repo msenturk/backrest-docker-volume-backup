@@ -171,3 +171,4 @@ release:
   github:
     owner: msenturk
     name: backrest-docker-volume-backup
+  replace_existing_artifacts: true
