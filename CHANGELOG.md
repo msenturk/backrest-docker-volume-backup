@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.1](https://github.com/msenturk/backrest-docker-volume-backup/compare/v1.14.0...v1.14.1) (2026-05-22)
+
+
+### Bug Fixes
+
+* update release-please action and use default GITHUB_TOKEN ([fca66a4](https://github.com/msenturk/backrest-docker-volume-backup/commit/fca66a45be4cd5518057409c8dc3c2c2ee801c64))
+
 ## [1.13.0](https://github.com/garethgeorge/backrest/compare/v1.12.1...v1.13.0) (2026-05-04)
 
 
