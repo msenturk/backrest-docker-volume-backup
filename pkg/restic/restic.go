@@ -67,6 +67,9 @@ func (r *Repo) commandWithContext(ctx context.Context, args []string, opts ...Ge
 	fullCmd = append(fullCmd, opt.extraArgs...)
 
 	cmd := exec.CommandContext(ctx, fullCmd[0], fullCmd[1:]...)
+	if opt.workDir != "" {
+		cmd.Dir = opt.workDir
+	}
 	platformutil.SetPlatformOptions(cmd)
 	cmd.Env = append(cmd.Env, opt.extraEnv...)
 
@@ -566,6 +569,7 @@ type GenericOpts struct {
 	extraArgs []string
 	extraEnv  []string
 	prefixCmd []string
+	workDir   string
 }
 
 func resolveOpts(opt *GenericOpts, opts []GenericOption) {
@@ -622,5 +626,11 @@ func WithEnviron() GenericOption {
 func WithPrefixCommand(args ...string) GenericOption {
 	return func(opts *GenericOpts) {
 		opts.prefixCmd = append(opts.prefixCmd, args...)
+	}
+}
+
+func WithWorkDir(dir string) GenericOption {
+	return func(opts *GenericOpts) {
+		opts.workDir = dir
 	}
 }

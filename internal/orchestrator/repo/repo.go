@@ -187,7 +187,14 @@ func (r *RepoOrchestrator) Backup(ctx context.Context, plan *v1.Plan, dryRun boo
 	ctx, flush := forwardResticLogs(ctx)
 	defer flush()
 	l.Debug("starting backup", zap.String("plan", plan.Id))
-	summary, err := r.repo.Backup(ctx, plan.Paths, progressCallback, opts...)
+	
+	paths := slices.Clone(plan.Paths)
+	if strings.HasPrefix(plan.Id, "docker-") && len(paths) == 1 {
+		opts = append(opts, restic.WithWorkDir(paths[0]))
+		paths = []string{"."}
+	}
+
+	summary, err := r.repo.Backup(ctx, paths, progressCallback, opts...)
 	if err != nil {
 		return summary, fmt.Errorf("failed to backup: %w", err)
 	}

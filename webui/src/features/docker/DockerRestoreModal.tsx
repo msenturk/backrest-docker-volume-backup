@@ -98,8 +98,8 @@ export const DockerRestoreModal = ({
           repoId,
           planId,
           snapshotId: selectedSnapshotId,
-          target: useOriginalLocation ? "/" : targetPath,
-          path: originalPath,
+          target: useOriginalLocation ? originalPath : targetPath,
+          path: "/",
           overwrite: true, // Always true here as the user is using the specialized Docker restore modal
           stopContainer: stopContainer,
         })
