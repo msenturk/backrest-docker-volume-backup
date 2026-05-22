@@ -6,7 +6,7 @@ env:
 before:
   hooks:
     - go mod tidy
-    - pnpm --prefix webui install
+    - pnpm --prefix webui install --no-frozen-lockfile
     - sh -c "GOOS=linux BACKREST_BUILD_VERSION={{.Version}} go generate ./..."
     - sh -c "GOOS=windows BACKREST_BUILD_VERSION={{.Version}} go generate ./..."
 
