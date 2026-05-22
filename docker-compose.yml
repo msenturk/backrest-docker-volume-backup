@@ -1,71 +1,28 @@
 services:
   backrest:
-    build:
-      context: .
-      dockerfile: Dockerfile.test
+    image: ghcr.io/msenturk/backrest-docker-volume-backup:latest
     container_name: backrest
     restart: unless-stopped
     ports:
       - "9898:9898"
     volumes:
-      - .:/app:Z
-      - ./data:/data:Z
-      - ./config:/config:Z
-      # This is where your backups will be stored on the host
-      - ./local-backups:/repos:Z
-      - ./local-backups:/home/backups:Z
-      # Required for Podman Auto-Discovery
-      - /run/user/1000/podman/podman.sock:/var/run/docker.sock:ro
-      # Mount volume storage for discovery and restoration
-      - /home/ms/.local/share/containers/storage/volumes:/home/ms/.local/share/containers/storage/volumes:rw,Z
+      # Persistent configuration and data
+      - ./data:/data
+      - ./config:/config
+      # This is where your local backups will be stored (if not using S3/cloud)
+      - ./local-backups:/repos
+      
+      # ---------------------------------------------------------------
+      # Auto-Discovery Socket & Volume Mounts
+      # ---------------------------------------------------------------
+      
+      # [Standard Docker Engine - Default]
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/volumes:/var/lib/docker/volumes:rw,Z
+
+      # [Podman Rootless - Uncomment if using rootless Podman instead]
+      # - /run/user/1000/podman/podman.sock:/var/run/docker.sock:ro
+      # - /home/ms/.local/share/containers/storage/volumes:/home/ms/.local/share/containers/storage/volumes:rw,Z
     environment:
       - BACKREST_CONFIG=/config/config.json
       - BACKREST_DATA_DIR=/data
-    develop:
-      watch:
-        - action: rebuild
-          path: go.mod
-        - action: rebuild
-          path: go.sum
-        - action: rebuild
-          path: Dockerfile.test
-        - action: sync+restart
-          path: .
-          target: /app
-          ignore:
-            - webui/
-            - data/
-            - config/
-            - backups/
-            - .git/
-
-  # Postgres demo service
-  test-db:
-    image: postgres:15-alpine
-    container_name: backrest-db
-    environment:
-      - POSTGRES_PASSWORD=example
-    volumes:
-      - test-db-data:/var/lib/postgresql/data:Z
-
-  # MySQL demo service
-  test-mysql:
-    image: mysql:8.0
-    container_name: backrest-mysql
-    environment:
-      - MYSQL_ROOT_PASSWORD=example
-      - MYSQL_DATABASE=demo
-    volumes:
-      - test-mysql-data:/var/lib/mysql:Z
-
-  # Redis demo service
-  test-redis:
-    image: redis:7-alpine
-    container_name: backrest-redis
-    volumes:
-      - test-redis-data:/data:Z
-
-volumes:
-  test-db-data:
-  test-mysql-data:
-  test-redis-data:

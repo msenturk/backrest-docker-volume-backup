@@ -23,21 +23,21 @@ build-frontend:
 
 # Start the Docker/Podman Compose environment
 up:
-    {{COMPOSE}} up -d
+    {{COMPOSE}} -f docker-compose.dev.yml up -d
 
 # Stop the environment
 down:
-    {{COMPOSE}} down
+    {{COMPOSE}} -f docker-compose.dev.yml down
 
 # Rebuild and restart containers (incremental)
 rebuild:
-    {{COMPOSE}} down
-    {{COMPOSE}} up -d --build
+    {{COMPOSE}} -f docker-compose.dev.yml down
+    {{COMPOSE}} -f docker-compose.dev.yml up -d --build
 
 # Watch for changes and update the container automatically (hot-reloading)
 watch:
     @echo "Starting development mode with hot-reloading..."
-    {{COMPOSE}} up -d
+    {{COMPOSE}} -f docker-compose.dev.yml up -d
     {{DOCKER}} exec -it -w /app backrest air
 
 # Run all E2E tests

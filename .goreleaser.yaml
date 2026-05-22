@@ -104,8 +104,8 @@ archives:
 dockers_v2:
   - id: alpine
     images:
-      - "garethgeorge/backrest"
-      - "ghcr.io/garethgeorge/backrest"
+      - "msenturk/backrest-docker-volume-backup"
+      - "ghcr.io/msenturk/backrest-docker-volume-backup"
     tags:
       - latest
       - latest-alpine
@@ -130,8 +130,8 @@ dockers_v2:
 
   - id: scratch
     images:
-      - garethgeorge/backrest
-      - ghcr.io/garethgeorge/backrest
+      - msenturk/backrest-docker-volume-backup
+      - ghcr.io/msenturk/backrest-docker-volume-backup
     tags:
       - scratch
       - v{{ .Major }}-scratch
@@ -156,17 +156,17 @@ brews:
   - name: backrest
     ids:
       - default
-    homepage: https://github.com/garethgeorge/backrest
+    homepage: https://github.com/msenturk/backrest-docker-volume-backup
     description: "Backrest is a web UI and orchestrator for restic backup."
 
-    url_template: "https://github.com/garethgeorge/backrest/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    url_template: "https://github.com/msenturk/backrest-docker-volume-backup/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
 
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com
 
     repository:
-      owner: garethgeorge
+      owner: msenturk
       name: homebrew-backrest-tap
       branch: main
       token: "{{ .Env.HOMEBREW_GITHUB_TOKEN }}"
@@ -185,5 +185,5 @@ changelog:
 
 release:
   github:
-    owner: garethgeorge
-    name: backrest
+    owner: msenturk
+    name: backrest-docker-volume-backup
