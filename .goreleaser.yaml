@@ -90,7 +90,6 @@ archives:
 dockers_v2:
   - id: alpine
     images:
-      - "msenturk/backrest-docker-volume-backup"
       - "ghcr.io/msenturk/backrest-docker-volume-backup"
     tags:
       - latest
@@ -116,7 +115,6 @@ dockers_v2:
 
   - id: scratch
     images:
-      - msenturk/backrest-docker-volume-backup
       - ghcr.io/msenturk/backrest-docker-volume-backup
     tags:
       - scratch
