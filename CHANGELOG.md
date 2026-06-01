@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.0](https://github.com/msenturk/backrest-docker-volume-backup/compare/v1.14.1...v1.15.0) (2026-06-01)
+
+
+### Features
+
+* add automatic SQL database dump injection on restore ([2a02427](https://github.com/msenturk/backrest-docker-volume-backup/commit/2a0242798026b9812c8f78cb029bb0c177b9d572))
+
 ## [1.14.1](https://github.com/msenturk/backrest-docker-volume-backup/compare/v1.14.0...v1.14.1) (2026-05-22)
 
 
