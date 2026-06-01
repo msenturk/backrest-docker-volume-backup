@@ -1,6 +1,8 @@
 services:
   backrest:
-    image: ghcr.io/msenturk/backrest-docker-volume-backup:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.test
     container_name: backrest
     restart: unless-stopped
     privileged: true
