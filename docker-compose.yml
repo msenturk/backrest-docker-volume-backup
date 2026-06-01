@@ -3,26 +3,21 @@ services:
     image: ghcr.io/msenturk/backrest-docker-volume-backup:latest
     container_name: backrest
     restart: unless-stopped
+    privileged: true
     ports:
       - "9898:9898"
     volumes:
       # Persistent configuration and data
       - ./data:/data
       - ./config:/config
-      # This is where your local backups will be stored (if not using S3/cloud)
       - ./local-backups:/repos
       
-      # ---------------------------------------------------------------
-      # Auto-Discovery Socket & Volume Mounts
-      # ---------------------------------------------------------------
-      
-      # [Standard Docker Engine - Default]
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /var/lib/docker/volumes:/var/lib/docker/volumes:rw,Z
+      - /home/murat:/home/murat:ro
 
-      # [Podman Rootless - Uncomment if using rootless Podman instead]
-      # - /run/user/1000/podman/podman.sock:/var/run/docker.sock:ro
-      # - /home/ms/.local/share/containers/storage/volumes:/home/ms/.local/share/containers/storage/volumes:rw,Z
+      # Auto-Discovery Socket & Volume Mounts
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/volumes:/var/lib/docker/volumes:rw
+
     environment:
       - BACKREST_CONFIG=/config/config.json
       - BACKREST_DATA_DIR=/data
