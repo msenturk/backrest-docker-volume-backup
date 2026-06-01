@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.17.0](https://github.com/msenturk/backrest-docker-volume-backup/compare/v1.16.0...v1.17.0) (2026-06-01)
+
+
+### Features
+
+* handle restic empty snapshot error gracefully as a skipped warning ([b4fc0e7](https://github.com/msenturk/backrest-docker-volume-backup/commit/b4fc0e772fe1383a8335cdbc6cbfc98b9b7ba576))
+* use container env fallbacks for postgres/mysql/mariadb hook credentials ([943bb4a](https://github.com/msenturk/backrest-docker-volume-backup/commit/943bb4a53de34efb834e441f9e404f8565cf60b4))
+
 ## [1.16.0](https://github.com/msenturk/backrest-docker-volume-backup/compare/v1.15.0...v1.16.0) (2026-06-01)
 
 
