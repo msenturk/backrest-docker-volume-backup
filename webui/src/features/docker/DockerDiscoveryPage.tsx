@@ -249,27 +249,27 @@ export const DockerDiscoveryPage = () => {
     const dumpPath = `/tmp/backrest-${container.name}-${safeVolumeName}-dump`;
 
     if (image.includes("postgres")) {
-      preHooks.push(`docker exec ${container.name} sh -c 'export PGPASSWORD="$POSTGRES_PASSWORD"; exec pg_dumpall -U postgres' > ${dumpPath}.sql`);
-      postHooks.push(`rm -f ${dumpPath}.sql`);
-      extraPaths.push(`${dumpPath}.sql`);
-    } else if (image.includes("mysql")) {
-      preHooks.push(`docker exec ${container.name} sh -c 'export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysqldump --all-databases -uroot' > ${dumpPath}.sql`);
-      postHooks.push(`rm -f ${dumpPath}.sql`);
-      extraPaths.push(`${dumpPath}.sql`);
-    } else if (image.includes("mariadb")) {
-      preHooks.push(`docker exec ${container.name} sh -c 'export MYSQL_PWD="$MARIADB_ROOT_PASSWORD"; exec mariadb-dump --all-databases -uroot' > ${dumpPath}.sql`);
-      postHooks.push(`rm -f ${dumpPath}.sql`);
-      extraPaths.push(`${dumpPath}.sql`);
-    } else if (image.includes("redis")) {
-      preHooks.push(`docker exec ${container.name} redis-cli save`);
-    } else if (image.includes("mongo")) {
-      preHooks.push(`docker exec ${container.name} mongodump --out ${dumpPath}`);
-      postHooks.push(`rm -rf ${dumpPath}`);
-      extraPaths.push(dumpPath);
-    } else {
-      preHooks.push(`docker pause ${container.name}`);
-      postHooks.push(`docker unpause ${container.name}`);
-    }
+            preHooks.push(`sh -c "docker exec ${container.name} sh -c 'export PGPASSWORD=\\$POSTGRES_PASSWORD; exec pg_dumpall -U postgres' > ${dumpPath}.sql"`);
+            postHooks.push(`rm -f ${dumpPath}.sql`);
+            extraPaths.push(`${dumpPath}.sql`);
+          } else if (image.includes("mysql")) {
+            preHooks.push(`sh -c "docker exec ${container.name} sh -c 'export MYSQL_PWD=\\$MYSQL_ROOT_PASSWORD; exec mysqldump --all-databases -uroot' > ${dumpPath}.sql"`);
+            postHooks.push(`rm -f ${dumpPath}.sql`);
+            extraPaths.push(`${dumpPath}.sql`);
+          } else if (image.includes("mariadb")) {
+            preHooks.push(`sh -c "docker exec ${container.name} sh -c 'export MYSQL_PWD=\\$MARIADB_ROOT_PASSWORD; exec mariadb-dump --all-databases -uroot' > ${dumpPath}.sql"`);
+            postHooks.push(`rm -f ${dumpPath}.sql`);
+            extraPaths.push(`${dumpPath}.sql`);
+          } else if (image.includes("redis")) {
+            preHooks.push(`docker exec ${container.name} redis-cli save`);
+          } else if (image.includes("mongo")) {
+            preHooks.push(`docker exec ${container.name} mongodump --out ${dumpPath}`);
+            postHooks.push(`rm -rf ${dumpPath}`);
+            extraPaths.push(dumpPath);
+          } else {
+            preHooks.push(`docker pause ${container.name}`);
+            postHooks.push(`docker unpause ${container.name}`);
+          }
 
     const hooks: any[] = [];
     preHooks.forEach(command => {
