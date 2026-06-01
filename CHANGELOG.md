@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.16.0](https://github.com/msenturk/backrest-docker-volume-backup/compare/v1.15.0...v1.16.0) (2026-06-01)
+
+
+### Features
+
+* add production Dockerfile, update compose config to pull from GHCR, and add CI workflow for pushes to main ([3d041a7](https://github.com/msenturk/backrest-docker-volume-backup/commit/3d041a756b23a6ec4ed67617d81d2d32dde61f61))
+
 ## [1.15.0](https://github.com/msenturk/backrest-docker-volume-backup/compare/v1.14.1...v1.15.0) (2026-06-01)
 
 
