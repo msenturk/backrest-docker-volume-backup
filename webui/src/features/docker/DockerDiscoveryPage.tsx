@@ -208,12 +208,22 @@ export const DockerDiscoveryPage = () => {
     const plan = config?.plans.find(p => p.id === planId);
     if (!plan) return;
     
+    const container = containers.find(c => c.volumes.some(v => v.planId === planId));
+    const containerName = container?.name;
+    const image = container?.image.toLowerCase() || "";
+    let databaseType = "";
+    if (image.includes("postgres")) databaseType = "postgres";
+    else if (image.includes("mysql")) databaseType = "mysql";
+    else if (image.includes("mariadb")) databaseType = "mariadb";
+
     showModal(
       <DockerRestoreModal
         planId={planId}
         repoId={plan.repo}
         volumeName={volumeName}
         originalPath={originalPath}
+        containerName={containerName}
+        databaseType={databaseType}
         onClose={() => showModal(null)}
       />
     );

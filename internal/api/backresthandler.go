@@ -618,8 +618,11 @@ func (s *BackrestHandler) Restore(ctx context.Context, req *connect.Request[v1.R
 		return nil, err
 	}
 
+	dockerContainer := req.Msg.GetDockerContainer()
+	databaseType := req.Msg.GetDatabaseType()
+
 	at := time.Now()
-	if err := s.orchestrator.ScheduleTask(tasks.NewOneoffRestoreTask(repo, req.Msg.PlanId, 0 /* flowID */, at, req.Msg.SnapshotId, req.Msg.Path, req.Msg.Target, req.Msg.Overwrite, req.Msg.StopContainer), tasks.TaskPriorityInteractive+tasks.TaskPriorityDefault); err != nil {
+	if err := s.orchestrator.ScheduleTask(tasks.NewOneoffRestoreTask(repo, req.Msg.PlanId, 0 /* flowID */, at, req.Msg.SnapshotId, req.Msg.Path, req.Msg.Target, req.Msg.Overwrite, req.Msg.StopContainer, dockerContainer, databaseType), tasks.TaskPriorityInteractive+tasks.TaskPriorityDefault); err != nil {
 		return nil, fmt.Errorf("failed to schedule restore task: %w", err)
 	}
 

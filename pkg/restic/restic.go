@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
@@ -320,8 +321,16 @@ func runCommandWithProgress[T ProgressEntryValidator](ctx context.Context, r *Re
 }
 
 func (r *Repo) Backup(ctx context.Context, paths []string, progressCallback func(*BackupProgressEntry), opts ...GenericOption) (*BackupProgressEntry, error) {
+	opt := &GenericOpts{}
+	resolveOpts(opt, r.opts)
+	resolveOpts(opt, opts)
+
 	for _, p := range paths {
-		if _, err := os.Stat(p); err != nil {
+		checkPath := p
+		if opt.workDir != "" && !filepath.IsAbs(p) {
+			checkPath = filepath.Join(opt.workDir, p)
+		}
+		if _, err := os.Stat(checkPath); err != nil {
 			return nil, fmt.Errorf("path %s does not exist: %w", p, err)
 		}
 	}

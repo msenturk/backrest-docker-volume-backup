@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"sort"
@@ -190,8 +192,14 @@ func (r *RepoOrchestrator) Backup(ctx context.Context, plan *v1.Plan, dryRun boo
 	
 	paths := slices.Clone(plan.Paths)
 	if strings.HasPrefix(plan.Id, "docker-") && len(paths) == 1 {
-		opts = append(opts, restic.WithWorkDir(paths[0]))
-		paths = []string{"."}
+		fi, err := os.Stat(paths[0])
+		if err == nil && !fi.IsDir() {
+			opts = append(opts, restic.WithWorkDir(filepath.Dir(paths[0])))
+			paths = []string{filepath.Base(paths[0])}
+		} else {
+			opts = append(opts, restic.WithWorkDir(paths[0]))
+			paths = []string{"."}
+		}
 	}
 
 	summary, err := r.repo.Backup(ctx, paths, progressCallback, opts...)

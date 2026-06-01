@@ -210,6 +210,8 @@ message RestoreSnapshotRequest {
   string target = 5;
   bool overwrite = 6; // allow restoring to an existing directory
   bool stop_container = 7; // stop the container before restoring
+  optional string docker_container = 8 [json_name="dockerContainer"];
+  optional string database_type = 9 [json_name="databaseType"];
 }
 
 message ListSnapshotFilesRequest {

@@ -46,6 +46,15 @@ const (
 	BackrestSyncStateServiceSetRemoteClientConfigProcedure = "/v1sync.BackrestSyncStateService/SetRemoteClientConfig"
 )
 
+// These variables are the protoreflect.Descriptor objects for the RPCs defined in this package.
+var (
+	backrestSyncServiceServiceDescriptor                            = v1sync.File_v1sync_syncservice_proto.Services().ByName("BackrestSyncService")
+	backrestSyncServiceSyncMethodDescriptor                         = backrestSyncServiceServiceDescriptor.Methods().ByName("Sync")
+	backrestSyncStateServiceServiceDescriptor                       = v1sync.File_v1sync_syncservice_proto.Services().ByName("BackrestSyncStateService")
+	backrestSyncStateServiceGetPeerSyncStatesStreamMethodDescriptor = backrestSyncStateServiceServiceDescriptor.Methods().ByName("GetPeerSyncStatesStream")
+	backrestSyncStateServiceSetRemoteClientConfigMethodDescriptor   = backrestSyncStateServiceServiceDescriptor.Methods().ByName("SetRemoteClientConfig")
+)
+
 // BackrestSyncServiceClient is a client for the v1sync.BackrestSyncService service.
 type BackrestSyncServiceClient interface {
 	Sync(context.Context) *connect.BidiStreamForClient[v1sync.SyncStreamItem, v1sync.SyncStreamItem]
@@ -60,12 +69,11 @@ type BackrestSyncServiceClient interface {
 // http://api.acme.com or https://acme.com/grpc).
 func NewBackrestSyncServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) BackrestSyncServiceClient {
 	baseURL = strings.TrimRight(baseURL, "/")
-	backrestSyncServiceMethods := v1sync.File_v1sync_syncservice_proto.Services().ByName("BackrestSyncService").Methods()
 	return &backrestSyncServiceClient{
 		sync: connect.NewClient[v1sync.SyncStreamItem, v1sync.SyncStreamItem](
 			httpClient,
 			baseURL+BackrestSyncServiceSyncProcedure,
-			connect.WithSchema(backrestSyncServiceMethods.ByName("Sync")),
+			connect.WithSchema(backrestSyncServiceSyncMethodDescriptor),
 			connect.WithClientOptions(opts...),
 		),
 	}
@@ -92,11 +100,10 @@ type BackrestSyncServiceHandler interface {
 // By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
 // and JSON codecs. They also support gzip compression.
 func NewBackrestSyncServiceHandler(svc BackrestSyncServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
-	backrestSyncServiceMethods := v1sync.File_v1sync_syncservice_proto.Services().ByName("BackrestSyncService").Methods()
 	backrestSyncServiceSyncHandler := connect.NewBidiStreamHandler(
 		BackrestSyncServiceSyncProcedure,
 		svc.Sync,
-		connect.WithSchema(backrestSyncServiceMethods.ByName("Sync")),
+		connect.WithSchema(backrestSyncServiceSyncMethodDescriptor),
 		connect.WithHandlerOptions(opts...),
 	)
 	return "/v1sync.BackrestSyncService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -132,18 +139,17 @@ type BackrestSyncStateServiceClient interface {
 // http://api.acme.com or https://acme.com/grpc).
 func NewBackrestSyncStateServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) BackrestSyncStateServiceClient {
 	baseURL = strings.TrimRight(baseURL, "/")
-	backrestSyncStateServiceMethods := v1sync.File_v1sync_syncservice_proto.Services().ByName("BackrestSyncStateService").Methods()
 	return &backrestSyncStateServiceClient{
 		getPeerSyncStatesStream: connect.NewClient[v1sync.SyncStateStreamRequest, v1sync.PeerState](
 			httpClient,
 			baseURL+BackrestSyncStateServiceGetPeerSyncStatesStreamProcedure,
-			connect.WithSchema(backrestSyncStateServiceMethods.ByName("GetPeerSyncStatesStream")),
+			connect.WithSchema(backrestSyncStateServiceGetPeerSyncStatesStreamMethodDescriptor),
 			connect.WithClientOptions(opts...),
 		),
 		setRemoteClientConfig: connect.NewClient[v1sync.SetRemoteClientConfigRequest, v1sync.SetRemoteClientConfigResponse](
 			httpClient,
 			baseURL+BackrestSyncStateServiceSetRemoteClientConfigProcedure,
-			connect.WithSchema(backrestSyncStateServiceMethods.ByName("SetRemoteClientConfig")),
+			connect.WithSchema(backrestSyncStateServiceSetRemoteClientConfigMethodDescriptor),
 			connect.WithClientOptions(opts...),
 		),
 	}
@@ -179,17 +185,16 @@ type BackrestSyncStateServiceHandler interface {
 // By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
 // and JSON codecs. They also support gzip compression.
 func NewBackrestSyncStateServiceHandler(svc BackrestSyncStateServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
-	backrestSyncStateServiceMethods := v1sync.File_v1sync_syncservice_proto.Services().ByName("BackrestSyncStateService").Methods()
 	backrestSyncStateServiceGetPeerSyncStatesStreamHandler := connect.NewServerStreamHandler(
 		BackrestSyncStateServiceGetPeerSyncStatesStreamProcedure,
 		svc.GetPeerSyncStatesStream,
-		connect.WithSchema(backrestSyncStateServiceMethods.ByName("GetPeerSyncStatesStream")),
+		connect.WithSchema(backrestSyncStateServiceGetPeerSyncStatesStreamMethodDescriptor),
 		connect.WithHandlerOptions(opts...),
 	)
 	backrestSyncStateServiceSetRemoteClientConfigHandler := connect.NewUnaryHandler(
 		BackrestSyncStateServiceSetRemoteClientConfigProcedure,
 		svc.SetRemoteClientConfig,
-		connect.WithSchema(backrestSyncStateServiceMethods.ByName("SetRemoteClientConfig")),
+		connect.WithSchema(backrestSyncStateServiceSetRemoteClientConfigMethodDescriptor),
 		connect.WithHandlerOptions(opts...),
 	)
 	return "/v1sync.BackrestSyncStateService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

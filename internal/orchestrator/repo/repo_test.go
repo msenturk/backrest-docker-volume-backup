@@ -491,3 +491,42 @@ func TestRestoreAmbiguity(t *testing.T) {
 		t.Errorf("FAIL: Expected main file missing: %s", expectedFile)
 	}
 }
+
+func TestDockerFileBackup(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	testFile := filepath.Join(tempDir, "test-file.txt")
+	if err := os.WriteFile(testFile, []byte("some file content"), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	repo := &v1.Repo{
+		Id:       "test-docker-file-repo",
+		Uri:      t.TempDir(),
+		Password: "test",
+		Flags:    []string{"--no-cache"},
+	}
+
+	plan := &v1.Plan{
+		Id:    "docker-test-file-plan",
+		Repo:  "test-docker-file-repo",
+		Paths: []string{testFile},
+	}
+
+	orchestrator := initRepoHelper(t, configForTest, repo)
+
+	summary, err := orchestrator.Backup(context.Background(), plan, false, nil)
+	if err != nil {
+		t.Fatalf("backup failed: %v", err)
+	}
+
+	if summary.SnapshotId == "" {
+		t.Fatal("expected snapshot id")
+	}
+
+	if summary.FilesNew != 1 {
+		t.Fatalf("expected 1 new file, got %d", summary.FilesNew)
+	}
+}
+

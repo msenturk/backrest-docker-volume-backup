@@ -42,6 +42,8 @@ interface DockerRestoreModalProps {
   repoId: string;
   volumeName: string;
   originalPath: string;
+  containerName?: string;
+  databaseType?: string;
   onClose: () => void;
 }
 
@@ -50,6 +52,8 @@ export const DockerRestoreModal = ({
   repoId,
   volumeName,
   originalPath,
+  containerName,
+  databaseType,
   onClose,
 }: DockerRestoreModalProps) => {
   const [snapshots, setSnapshots] = useState<ResticSnapshot[]>([]);
@@ -59,6 +63,15 @@ export const DockerRestoreModal = ({
   const [targetPath, setTargetPath] = useState(originalPath);
   const [useOriginalLocation, setUseOriginalLocation] = useState(true);
   const [stopContainer, setStopContainer] = useState(true);
+  const [importDbDump, setImportDbDump] = useState(!!databaseType);
+
+  useEffect(() => {
+    if (!useOriginalLocation) {
+      setImportDbDump(false);
+    } else {
+      setImportDbDump(!!databaseType);
+    }
+  }, [useOriginalLocation, databaseType]);
 
   useEffect(() => {
     fetchSnapshots();
@@ -102,6 +115,8 @@ export const DockerRestoreModal = ({
           path: "/",
           overwrite: true, // Always true here as the user is using the specialized Docker restore modal
           stopContainer: stopContainer,
+          dockerContainer: importDbDump ? containerName : undefined,
+          databaseType: importDbDump ? databaseType : undefined,
         })
       );
       alerts.success("Restore operation started.");
@@ -221,6 +236,17 @@ export const DockerRestoreModal = ({
                   <Text as="span">Stop associated container(s) during restore</Text>
                 </Tooltip>
               </Checkbox>
+
+              {databaseType && useOriginalLocation && (
+                <Checkbox
+                  checked={importDbDump}
+                  onCheckedChange={(e) => setImportDbDump(!!e.checked)}
+                >
+                  <Tooltip content={`Backrest will automatically run the SQL import command inside the database container (${containerName}) using the restored auto_dump.sql file.`}>
+                    <Text as="span">Automatically inject SQL database dump after restore</Text>
+                  </Tooltip>
+                </Checkbox>
+              )}
 
               {useOriginalLocation && (
                 <Alert status="warning" variant="subtle" size="sm" icon={<FiAlertTriangle />}>
