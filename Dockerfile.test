@@ -18,8 +18,6 @@ RUN npm run build
 FROM golang:1.26-alpine AS go-builder
 RUN apk add --no-cache git
 WORKDIR /app
-# Install air for hot-reloading
-RUN go install github.com/air-verse/air@latest
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
@@ -34,12 +32,11 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     go build -o /docker-entrypoint ./cmd/docker-entrypoint
 
 # Final stage
-FROM golang:1.26-alpine
+FROM alpine:latest
 RUN apk --no-cache add tini ca-certificates curl bash rclone openssh tzdata docker-cli
 WORKDIR /app
 COPY --from=go-builder /backrest /backrest
 COPY --from=go-builder /docker-entrypoint /docker-entrypoint
-COPY --from=go-builder /go/bin/air /usr/bin/air
 
 # Install restic dependency (cached)
 RUN --mount=type=cache,target=/root/.local/share/backrest \
