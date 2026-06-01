@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -219,8 +220,18 @@ func (t *BackupTask) Run(ctx context.Context, st ScheduledTask, runner TaskRunne
 	var conditions []v1.Hook_Condition
 
 	if err != nil {
-		vars.Error = err.Error()
-		if !errors.Is(err, restic.ErrPartialBackup) {
+		if strings.Contains(err.Error(), "snapshot is empty") {
+			l.Warn("Backup skipped: source directory/volume is empty", zap.String("plan", plan.Id))
+			op.Status = v1.OperationStatus_STATUS_WARNING
+			op.DisplayMessage = "No snapshot added because the source directory/volume is empty."
+			if summary == nil {
+				summary = &restic.BackupProgressEntry{}
+			}
+			summary.MessageType = "summary"
+			summary.SnapshotId = ""
+			err = nil
+		} else if !errors.Is(err, restic.ErrPartialBackup) {
+			vars.Error = err.Error()
 			runner.ExecuteHooks(ctx, []v1.Hook_Condition{
 				v1.Hook_CONDITION_SNAPSHOT_ERROR,
 				v1.Hook_CONDITION_ANY_ERROR,
@@ -229,9 +240,9 @@ func (t *BackupTask) Run(ctx context.Context, st ScheduledTask, runner TaskRunne
 			return err
 		} else {
 			vars.Error = fmt.Sprintf("partial backup, %d files may not have been read completely.", len(backupOp.OperationBackup.Errors))
+			op.Status = v1.OperationStatus_STATUS_WARNING
+			op.DisplayMessage = "Partial backup, some files may not have been read completely."
 		}
-		op.Status = v1.OperationStatus_STATUS_WARNING
-		op.DisplayMessage = "Partial backup, some files may not have been read completely."
 	}
 
 	op.SnapshotId = summary.SnapshotId
@@ -258,7 +269,9 @@ func (t *BackupTask) Run(ctx context.Context, st ScheduledTask, runner TaskRunne
 
 	if summary.SnapshotId == "" && !t.dryRun {
 		// --skip-if-unchanged case: no changes in source data
-		op.DisplayMessage = "No snapshot added, possibly due to no changes in the source data."
+		if op.DisplayMessage == "" {
+			op.DisplayMessage = "No snapshot added, possibly due to no changes in the source data."
+		}
 		conditions = append(conditions, v1.Hook_CONDITION_SNAPSHOT_SKIPPED)
 	}
 

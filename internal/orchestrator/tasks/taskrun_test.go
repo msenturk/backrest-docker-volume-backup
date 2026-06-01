@@ -352,6 +352,16 @@ func TestBackupTaskRun(t *testing.T) {
 			wantHooks:     []v1.Hook_Condition{v1.Hook_CONDITION_SNAPSHOT_START, v1.Hook_CONDITION_SNAPSHOT_SKIPPED, v1.Hook_CONDITION_SNAPSHOT_END},
 			wantScheduled: nil,
 		},
+		{
+			name: "backup with empty snapshot error",
+			fake: &fakeRepoOrchestrator{
+				backupErr: fmt.Errorf("unable to save snapshot: snapshot is empty"),
+			},
+			plan:          &v1.Plan{Id: "plan1", Repo: "repo1"},
+			wantErr:       false,
+			wantHooks:     []v1.Hook_Condition{v1.Hook_CONDITION_SNAPSHOT_START, v1.Hook_CONDITION_SNAPSHOT_SKIPPED, v1.Hook_CONDITION_SNAPSHOT_END},
+			wantScheduled: nil,
+		},
 	}
 
 	for _, tc := range tests {
